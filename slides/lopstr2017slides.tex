@@ -1,0 +1,592 @@
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{soul}
+\usepackage{alltt}
+\usepackage{marvosym}
+\usepackage{mathpartir}
+\usepackage{tikz}
+\usepackage{listings}
+
+\usetikzlibrary{arrows}
+
+\definecolor{listblue}{HTML}{0078b4}  % list logo color
+\newcommand{\comment}[1]{\textcolor{listblue}{#1}}
+
+\title{Liveness-Driven Random Program Generation}
+\author{Gergö Barany \\ Inria Paris, France \\ \texttt{gergo.barany@inria.fr}}
+%\date{CEA List LSL seminar, September 19, 2017}
+\date{LOPSTR 2017, Namur, Belgium}
+%\date{Gallium seminar, October 23, 2017}
+
+\newcommand\ldrgen{\texttt{ldrgen}}
+\newcommand{\liveout}[1]{\ensuremath{#1^{\circ}}}
+\newcommand{\livein}[1]{\ensuremath{#1^{\bullet}}}
+\newcommand{\triple}[3]{\ensuremath{
+    \left\langle#1\right\rangle \ #2 \ \left\langle#3\right\rangle
+}}
+\def\union{\cup}
+
+% make listings not super-ugly
+\lstset{language=[Objective]Caml,columns=fullflexible,emphstyle=\emph,
+        mathescape=true,showstringspaces=false,stringstyle=\texttt}
+
+\colorlet{dbrown}{brown!75!black}
+
+\begin{document}
+
+\begin{frame}
+\maketitle
+\end{frame}
+
+\begin{frame}{Motivation}
+
+\structure{Context:}
+automatic tool for finding \emph{missed optimizations} \\[2em]
+\pause
+
+\begin{minipage}[t]{.465\textwidth}
+Generated source code:
+\begin{alltt}
+int f(int p, int q) \{ \\
+\mbox{ } return q \textcolor{purple}{+} \textcolor{blue}{(p \% 6)} \textcolor{dbrown}{/ 9}; \\
+\} \\
+\end{alltt}
+\visible<5->{
+(\(\mathtt{p\,\%\,6} \in [-5, 5]\), \\
+division truncates to 0) \\
+recently fixed
+}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{.32\textwidth}
+Clang:
+\scriptsize
+\visible<3->{
+\begin{alltt}
+\textcolor{blue}{
+movw    r2, \#43691 \\
+movt    r2, \#10922 \\
+smmul   r2, r0, r2 \\
+add r2, r2, r2, lsr \#31 \\
+add r2, r2, r2, lsl \#1 \\
+sub r0, r0, r2, lsl \#1 \\
+}\textcolor{dbrown}{
+movw    r2, \#36409 \\
+movt    r2, \#14563 \\
+smmul   r0, r0, r2 \\
+asr r2, r0, \#1 \\
+add r0, r2, r0, lsr \#31 \\
+}\textcolor{purple}{
+add r0, r0, r1 \\
+}bx  lr \\
+\end{alltt}
+}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{.19\textwidth}
+GCC: \\[-4.1ex]  % don't know why this is misaligned
+\visible<4->{
+\begin{alltt}
+\textcolor{purple}{
+mov r0, r1 \\
+}bx lr \\
+\end{alltt}
+}
+\end{minipage}
+
+\end{frame}
+
+\begin{frame}{Randomized differential testing}
+
+popularized by Yang et al., ``Finding and understanding bugs in C
+compilers'', PLDI '11
+\\[1ex]
+
+\begin{block}{How to find compiler bugs:}
+\begin{itemize}
+\item generate random source code
+\item compile with different compilers
+\item compare binaries (code or behavior)
+\end{itemize}
+\end{block}
+
+\structure{Csmith}: standard C program generator, has found hundreds of bugs
+\\[1ex]
+
+\structure{this work}: ldrgen, new random C code generator
+
+\end{frame}
+
+\begin{frame}{A problem with Csmith}
+
+\begin{minipage}[t]{.4\textwidth}
+\begin{alltt}
+\only<1>{\scalebox{0.1}{\parbox{\textwidth}{\input{fn1.c}}}}%
+\only<2->{\scalebox{0.1}{\parbox{\textwidth}{\input{fn2.c}}}}
+\end{alltt}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{.55\textwidth}
+\mbox{}\\[-20ex]  % don't know why this is misaligned
+162 LOC (without 100 lines of inits)
+\pause
+
+compiles to 8 instructions:
+\begin{alltt}
+%\scalebox{0.75}{\parbox{\textwidth}{\input{fn1.s}}}
+\scriptsize
+func\_1: \\
+\textcolor{blue}{
+\mbox{ \ \ } movl	\$27, \%eax \\
+.L2: \\
+\mbox{ \ \ } movl	\%eax, g\_2(\%rip) \\
+\mbox{ \ \ } subl	\$1, \%eax \\
+\textcolor{dbrown}{\mbox{ \ \ } movl	\$7, g\_11(\%rip)} \\
+\mbox{ \ \ } cmpl	\$-26, \%eax \\
+\mbox{ \ \ } jne	.L2 \\
+}\textcolor{purple}{
+\mbox{ \ \ } movl	g\_3042(\%rip), \%eax \\
+\mbox{ \ \ } ret \\
+}
+\end{alltt}
+
+vast majority of code is~\alert{dead code}
+\end{minipage}
+
+\end{frame}
+
+\begin{frame}{Liveness and dead code}
+
+\structure{live variable:} variable that may be used in the future
+
+\alert{dead variable:} variable that is definitely not used in the future
+
+\vskip 1em
+\begin{tabular}{l @{\qquad} l}
+\texttt{x = y + z;} & \texttt{x = y + z;} \\
+\texttt{return x;}  & \texttt{return y;}  \\[.5em]
+\texttt{x} \structure{live} after assignment &
+\texttt{x} \alert{dead} after assignment \\
+\end{tabular}
+
+\vskip 1em
+by extension: \structure{live code} computes value maybe used in future
+
+\alert{dead code elimination:} standard compiler pass, removes dead code
+
+\pause
+
+\vskip 2em
+Dead \(\neq\) unreachable: dead code more than \texttt{if (false) ...}
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Live variable analysis}
+
+backwards data flow analysis \\[1em]
+
+\begin{minipage}[c]{.45\textwidth}
+\tikzstyle{stmt} = [rectangle, draw]
+\tikzstyle{arc} = [draw, -latex']
+
+\begin{tikzpicture}[node distance=2cm, auto]
+\node[stmt] (return) {\texttt{return x}};
+\node[stmt, above of=return] (x) {\texttt{x = y + z}};
+\node[stmt, above left of=x] (y) {\texttt{y = a}};
+\node[stmt, above right of=x] (z) {\texttt{z = b}};
+\node[stmt, above right of=y] (cond) {\texttt{if (c)}};
+\node[above of=cond] (start) {};
+
+\path[arc] (x) -- node {\(\{x\)\}} (return);
+\path[arc] (y) -- node [swap, near start] {\(\{y, z\}\)} (x);
+\path[arc] (z) -- node [near start] {\(\{y, z\}\)} (x);
+\path[arc] (cond) -- node [swap, near end] {\(\{a, z\}\)} (y);
+\path[arc] (cond) -- node [near end] {\(\{b, y\}\)} (z);
+\path[arc] (start) -- node {\(\{a, b, c, y, z\}\)} (cond);
+\end{tikzpicture}
+\end{minipage}
+\hfill
+\begin{minipage}[c]{.45\textwidth}
+
+live-in set \(\livein{S}\): live before~\(S\) \\
+live-out set \(\liveout{S}\): live after~\(S\) \\
+
+transfer function for \(\mathtt{v = e}\):
+\[
+\livein{S} = (\liveout{S} \setminus \{v\}) \union FV(e)
+\]
+
+control flow split:
+\[\liveout{S} = \bigcup_{S_i \in \mathit{succ}(S)}
+\livein{S_i}\]
+
+compute \structure{least fixed point}
+\end{minipage}
+
+\end{frame}
+
+
+\begin{frame}{Generation of fully live programs}
+
+want to generate \structure{fully live} programs: all statements are live\\[1em]
+
+\structure{idea:} perform liveness analysis during (backwards!) generation \\[1em]
+
+\pause
+but I am lazy:
+\begin{itemize}
+\item do \alert{not} want to generate a control flow graph
+\item do \alert{not} want to backtrack/iterate to fixed point
+\end{itemize}
+
+\mbox{}\\[1em]
+long-forgotten idea:
+\begin{center}
+\structure{structural data-flow analysis}
+\end{center}
+
+\end{frame}
+
+
+\begin{frame}{Structural (full) liveness analysis}
+
+\structure{liveness triple:} \(\triple{\livein{S}}{S}{\liveout{S}}\) \\[1em]
+
+\pause
+\[
+\inferrule*[left=Assign]{
+    v \in \liveout{S} \\
+    \livein{S} = (\liveout{S} \setminus \{v\}) \union FV(e)
+}{
+    \triple{\livein{S}}{v\ \mathtt{=}\ e}{\liveout{S}}
+}
+\]
+
+\pause
+\[
+\inferrule*[left=Sequence]{
+    \triple{\livein{S_1}}{S_1}{\livein{S_2}} \\
+    \triple{\livein{S_2}}{S_2}{\liveout{S_2}} \\
+    \livein{S_2} \neq \emptyset
+}{
+    \triple{\livein{S_1}}{S_1\ \mathtt{;}\ S_2}{\liveout{S_2}}
+}
+\]
+
+\[
+\inferrule*[left=If]{
+    \triple{\livein{S_1}}{S_1}{\liveout{S}} \\
+    \triple{\livein{S_2}}{S_2}{\liveout{S}} \\
+    \livein{S} = \livein{S_1} \union \livein{S_2} \union FV(c)
+}{
+    \triple{\livein{S}}
+           {\mathtt{if\ (}c\mathtt{)}\ S_1\ \mathtt{else}\ S_2}
+           {\liveout{S}}
+}
+\]
+
+\pause
+side conditions to ensure \structure{full} liveness
+
+program~\(S\) fully live iff~\triple{\livein{S}}{S}{\emptyset} derivable
+\end{frame}
+
+
+\begin{frame}{Example: Failed derivation}
+
+Programs with dead code cannot be proved fully live:
+
+\[
+\inferrule*[left=Sequence]{
+    \inferrule*[left=Assign]{
+    \textcolor{red}{\mathtt{x} \notin \{\mathtt{y}\}\ \mbox{\Lightning}}
+    }{\triple{\livein{S}}{\mbox{\texttt{x = y + z}}}{\{\mathtt{y}\}}}
+    \\
+    \triple{\{y\}}{\mbox{\texttt{return y}}}{\emptyset} % \\
+    % \{\mathtt{y}\} \neq \emptyset
+}{
+\triple{\livein{S}}{\mbox{\texttt{x = y + z; return y}}}{\emptyset}
+}
+\]
+
+\end{frame}
+
+
+\begin{frame}{Analyzing loops}
+
+\[
+\inferrule[While]{
+    \livein{L} = \livein{B} \union \liveout{L} \\
+    \liveout{L} \neq \emptyset \\
+    \triple{\livein{B}}{B}{\liveout{B}} \\
+    \liveout{B} = \liveout{L} \union \livein{B} \union FV(c)
+        \mbox{ (minimal)} \\
+}{
+    \triple{\livein{L}}
+           {\mathtt{while\ (}c\mathtt{)}\ B}
+           {\liveout{L}}
+}
+\]
+
+\pause
+\mbox{}\\[1em]
+Not constructive: How to compute the fixed point? \\[1em]
+
+Not a problem for random generation: \structure{chooose} least fixed point.
+\end{frame}
+
+
+\begin{frame}{Example derivation}
+
+\scriptsize
+\[
+\inferrule*{
+\inferrule*{
+\inferrule*{
+    \inferrule*{
+        \mathtt{
+        \triple{\{a, b, n\}}
+               {\mbox{\texttt{t = a + b}}}
+               {\{b, n, t\}}} \\
+        \inferrule*[vdots=1.35em, leftskip=7.5em]{
+            \mathtt{
+            \triple{\{b, n, t\}}
+                   {\mbox{\texttt{a = b}}}
+                   {\{a, n, t\}}} \\
+            \inferrule*[vdots=1.35em, leftskip=10em]{
+                \mathtt{
+                \triple{\{a, n, t\}}
+                       {\mbox{\texttt{b = t}}}
+                       {\{a, b, n\}}} \\
+                \inferrule*[vdots=1.35em, leftskip=10em]{
+                    \mathtt{
+                    \triple{\{a, b, n\}}
+                           {\mbox{\texttt{n = n - 1}}}
+                           {\{a, b, n\}}}
+                }{ }
+            }{ }
+        }{ }
+    }{
+        \mathtt{
+        \triple{\{a, b, n\}}
+               {\mbox{\texttt{t = a + b;\ a = b;\ b = t;\ n = n - 1}}}
+               {\{a, b, n\}}}
+    }
+}{
+    \mathtt{
+    \triple{\{a, b, n\}}
+           {\mbox{\texttt{while\ (n\,>\,0)\ %
+                  \{\ t\,=\,a\,+\,b;\ a\,=\,b;\ b\,=\,t;\ n\,=\,n\,-\,1\ \}}}}
+           {\{a\}}}
+}
+}{
+    \vdots
+}}{
+    \mathtt{
+    \triple{\{n\}}
+           {\mbox{\texttt{a\,=\,0;\,b\,=\,1;\,%
+                    while\,(n\,>\,0)\,\{\,t\,=\,a\,+\,b;\,a\,=\,b;\,b\,=\,t;\,n\,=\,n\,-\,1\,\};\,%
+                    return\,a}}}
+           {\emptyset}}
+}
+\]
+
+\end{frame}
+
+
+\begin{frame}[fragile]{From structural analysis to code generation (1/2)}
+
+\[
+\inferrule*[left=Assign]{
+    v \in \liveout{S} \\
+    \livein{S} = (\liveout{S} \setminus \{v\}) \union FV(e)
+}{
+    \triple{\livein{S}}{v\ \mathtt{=}\ e}{\liveout{S}}
+}
+\]
+
+\vskip 1em
+\begin{lstlisting}
+let assignment $\liveout{S}$ =
+    let v = random_select $\liveout{S}$ in
+    let e = random_expression () in
+    ("$v$ = $e$", $(\liveout{S} \setminus \{v\}) \union FV(e)$)
+\end{lstlisting}
+
+\end{frame}
+
+\begin{frame}[fragile]{From structural analysis to code generation (2/2)}
+
+\[
+\inferrule*[left=If]{
+    \triple{\livein{S_1}}{S_1}{\liveout{S}} \\
+    \triple{\livein{S_2}}{S_2}{\liveout{S}} \\
+    \livein{S} = \livein{S_1} \union \livein{S_2} \union FV(c)
+}{
+    \triple{\livein{S}}
+           {\mathtt{if\ (}c\mathtt{)}\ S_1\ \mathtt{else}\ S_2}
+           {\liveout{S}}
+}
+\]
+
+\vskip 1em
+\begin{lstlisting}
+let branch $\liveout{S}$ =
+    let (t, $\livein{S}_1$) = random_statements $\liveout{S}$ in
+    let (f, $\livein{S}_2$) = random_statements $\liveout{S}$ in
+    let c = random_expression () in
+    ("if ($c$) $t$ else $f$", $\livein{S}_1 \union \livein{S}_2 \union FV(c)$)
+\end{lstlisting}
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Generation of loops}
+
+\[
+\inferrule[While]{
+    \livein{L} = \livein{B} \union \liveout{L} \\
+    \liveout{L} \neq \emptyset \\
+    \triple{\livein{B}}{B}{\liveout{B}} \\
+    \liveout{B} = \liveout{L} \union \livein{B} \union FV(c)
+        \mbox{ (minimal)} \\
+}{
+    \triple{\livein{L}}
+           {\mathtt{while\ (}c\mathtt{)}\ B}
+           {\liveout{L}}
+}
+\]
+
+Idea:
+
+\begin{itemize}
+\item generate random variable set~\(B'\), condition~\(c\)
+\item \structure{assume} least fixed point~\(\liveout{B} = \liveout{L} \union
+B' \union FV(c)\)
+\item generate body given~\(\liveout{B}\)
+\item add statements to \structure{ensure} all~\(v \in B'\) used in body and live-in
+\end{itemize}
+
+% \begin{lstlisting}
+% let loop $\liveout{L}$ =
+%     let c = random_expression () in
+%     let $B'$ = random_variable_set () in  (* choose fixed point *)
+%     let (code, L') = random_statements $(\liveout{L} \union B' \union FV(c))$ in
+%     let $V = \{ b \in B' \mid b \notin L' \mbox{ or \(b\) not used in \(S\)}\}$ in
+%     ... (* add stmts to ensure all $v \in V$ are live-in *)
+%     ("while ($c$) code'", $L' \union V \union \liveout{L}$)
+% \end{lstlisting}
+
+\end{frame}
+
+
+\begin{frame}{Implementation (1/2)}
+
+Plugin for~\structure{Frama-C} analysis platform
+
+Generator: about 600 lines of OCaml
+
+Features:
+\begin{itemize}
+\item arithmetic, simple arrays and pointers
+\item \texttt{if}, \texttt{while}
+\item \texttt{for} loops implementing map-reduce on arrays:
+\begin{alltt}
+v = \(\dots\); \\
+for (unsigned int i = 0; i < N; i++) \{ \\
+\mbox{ \ \ } v = v \(\circ\) \(f(\mbox{\texttt{arr[i]}})\); \\
+\}
+\end{alltt}
+\item many flags for customization:
+\begin{alltt}
+-fp -fp-only -int-only -bitwise -div-mod \\
+-expr-depth -stmt-depth -block-length -loops \\
+-max-args -max-live
+\end{alltt}
+\end{itemize}
+
+\end{frame}
+
+
+\begin{frame}{Implementation (2/2)}
+
+\vskip 1em
+Limitations:
+\begin{itemize}
+\item no \texttt{struct} (coming at some point)
+\item very limited use of pointers, no pointer arithmetic
+\item strictly structured code only (no \texttt{break}, \texttt{continue},
+\texttt{goto})
+\item a single function, no~\texttt{main} function
+\end{itemize}
+
+\vskip 1em
+\structure{Csmith} is much, much more general.
+
+\end{frame}
+
+
+\begin{frame}{Evaluation}
+
+1000 programs generated each \\[2em]
+
+\centering
+\begin{tabular}{l@{\ } | @{\ }l @{\quad} r @{\quad} r @{\quad} r @{\quad} r}
+
+& generator & min & median & max & total \\
+\hline
+lines of code & Csmith
+    & 25 & 368.5 & 2953 & 459021 \\
+& \ldrgen
+    & 12 & 411.5 & 1003 & 389939
+    \\[.5ex]
+\pause
+instructions & Csmith
+    & 1 &  15.0 & 1006 &   45606 \\
+& \ldrgen
+    & 1 & 952.5 & 4420 & 1063503
+    \\[.5ex]
+\pause
+unique opcodes & Csmith
+    & 1 &  8 &  74 & 146 \\
+& \ldrgen
+    & 1 & 95 & 124 & 204
+    \\
+
+\end{tabular}
+
+\pause \mbox{}\\[2em]
+\begin{tabular}{l@{\ } | @{\ }r@{\quad}r@{\quad}r}
+    generator & time (sec) & lines/sec & instrs/sec \\
+    \hline
+    Csmith & 871 &  527 & 52.4 \\
+    \ldrgen & 124 & 3140 & 8562.8
+\end{tabular}
+
+
+\end{frame}
+
+
+\begin{frame}{Summary}
+
+\begin{itemize}
+\item random program generation for testing compiler optimizations
+\item \structure{fully live} programs by structural analysis during generation
+\item much more effective than Csmith \alert{for this use case}
+\end{itemize}
+
+\pause
+
+\vskip 2em
+\begin{center}
+\structure{Thank you for your attention}
+\end{center}
+
+{\scriptsize
+This research was partially supported by ITEA~3 project no.~14014, ASSUME.}
+
+\end{frame}
+
+\end{document}
