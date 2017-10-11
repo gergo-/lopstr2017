@@ -40,6 +40,10 @@ Inria Saclay \\
 }}
 \def\union{\cup}
 
+% en Français la norme est de mettre en italique
+% les expressions en langue étragère
+\newcommand{\anglais}[1]{\textit{#1}}
+
 % make listings not super-ugly
 \lstset{language=[Objective]Caml,columns=fullflexible,emphstyle=\emph,
         mathescape=true,showstringspaces=false,stringstyle=\texttt}
@@ -49,19 +53,19 @@ Inria Saclay \\
 \thispagestyle{plain}
 
 \begin{abstract}
-Les programmes générés aléatoirement sont un moyen populaire de tester des
-compilateurs et des outils d'analyse de logiciel. Des centaines de bogues en
-compilateurs C réalistes ont été trouvé par des testes aléatoires. Pourtant,
-les générateurs existants peuvent générer beaucoup de code mort (dont les
-résultats ne sont jamais utilisés). Compiler un tel programme laisse
-relativement peu de possibilités d'exercer les optimisations complexes du
-compilateur.
+Les programmes générés aléatoirement sont un bon moyen de tester des
+compilateurs et des outils d'analyse de logiciel. Des centaines de bogues
+ont été trouvé dans des compilateurs C très utilisés (GCC, Clang) par des
+tests aléatoires. Pourtant, les générateurs existants peuvent générer
+beaucoup de code mort (dont les résultats ne sont jamais utilisés). Compiler
+un tel programme laisse relativement peu de possibilités d'exercer les
+optimisations complexes du compilateur.
 
 Pour résoudre ce problème, nous proposons la génération aléatoire de
-programmes guidée par la vivacité. Dans cette approche, le programme
-aléatoire est construit bottom-up (?), guidée par une analyse de flot de
-données structurelle simultanée pour assurer que le système ne génère jamais
-du code mort.
+programmes guidée par la vivacité. Dans cette approche, le programme aléatoire
+est construit \anglais{bottom-up}, en combinaison avec une analyse de flot de
+données structurelle pour assurer que le système ne génère jamais de code
+mort.
 
 L'algorithme est implanté dans un greffon pour l'outil Frama-C. Nous
 l'évaluons en comparaison avec Csmith, le générateur aléatoire standard pour
