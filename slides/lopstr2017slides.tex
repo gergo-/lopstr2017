@@ -16,8 +16,8 @@
 \title{Liveness-Driven Random Program Generation}
 \author{Gergö Barany \\ Inria Paris, France \\ \texttt{gergo.barany@inria.fr}}
 %\date{CEA List LSL seminar, September 19, 2017}
-\date{LOPSTR 2017, Namur, Belgium}
-%\date{Gallium seminar, October 23, 2017}
+%\date{LOPSTR 2017, Namur, Belgium}
+\date{Gallium seminar, October 23, 2017}
 
 \newcommand\ldrgen{\texttt{ldrgen}}
 \newcommand{\liveout}[1]{\ensuremath{#1^{\circ}}}
@@ -304,7 +304,7 @@ Programs with dead code cannot be proved fully live:
     \textcolor{red}{\mathtt{x} \notin \{\mathtt{y}\}\ \mbox{\Lightning}}
     }{\triple{\livein{S}}{\mbox{\texttt{x = y + z}}}{\{\mathtt{y}\}}}
     \\
-    \triple{\{y\}}{\mbox{\texttt{return y}}}{\emptyset} % \\
+    \triple{\{\mathtt{y}\}}{\mbox{\texttt{return y}}}{\emptyset} % \\
     % \{\mathtt{y}\} \neq \emptyset
 }{
 \triple{\livein{S}}{\mbox{\texttt{x = y + z; return y}}}{\emptyset}
@@ -330,10 +330,10 @@ Programs with dead code cannot be proved fully live:
 }
 \]
 
-\pause
 \mbox{}\\[1em]
 Not constructive: How to compute the fixed point? \\[1em]
 
+\pause
 Not a problem for random generation: \structure{chooose} least fixed point.
 \end{frame}
 
