@@ -19,7 +19,7 @@
 
 \title{Génération aléatoire de programmes guidée par la vivacité}
 % \title{Liveness-Driven Random Program Generation}
-\author{Gergö Barany\inst{1} \and Gabriel Scherer\inst{2}}
+\author{Gergö Barany\inst{1} et Gabriel Scherer\inst{2}}
 \institute{
 Inria Paris \\
 \email{gergo.barany@inria.fr}
@@ -76,30 +76,48 @@ d'instructions.
 Ce papier est une version courte d'un article présenté à LOPSTR~2017.
 \end{abstract}
 
-\begin{abstract}
-Randomly generated programs are popular for testing compilers and program
-analysis tools, with hundreds of bugs in real-world~C compilers found by
-random testing. However, existing random program generators may generate
-large amounts of dead code (computations whose result is never used). This
-leaves relatively little code to exercise a target compiler's more complex
-optimizations.
-
-To address this shortcoming, we introduce liveness-driven random program
-generation. In this approach the random program is constructed bottom-up,
-guided by a simultaneous structural data-flow analysis to ensure that the
-generator never generates dead code.
-
-The algorithm is implemented as a plugin for the Frama-C framework. We
-evaluate it in comparison to Csmith, the standard random C program
-generator. Our tool generates programs that compile to more machine code
-with a more complex instruction mix.
-\end{abstract}
-
 % \keywords{code generation, random testing, data-flow analysis, program
 % optimization}
 
 
 \section{Motivation}
+
+Les compilateurs pour les langages de programmation modernes sont
+compliqués et difficiles à comprendre. Malgré les avances en vérification de
+compilateurs~\cite{leroy-2009,tan-2016}, la plupart des compilateurs
+réalistes ne sommes pas vérifiés. Il faut de tests pour avoir de la
+confiance en leur correction. Une approche populaire est le test aléatoire,
+fait avec des fichiers d'entrée produits par un générateur aléatoire de
+programmes. L'outil le plus connu dans ce domaine est Csmith, un générateur
+aléatoire de programmes C. Csmith est très puissant~: il a trouvé des
+centaines de bogues dans des compilateurs très utilisés comme GCC et Clang,
+et même dans des parties non vérifiées du compilateur vérifié
+CompCert~\cite{csmith-2011}.
+
+Dans un projet de tests des optimisations effectués par des compilateurs C
+nous avions besoin d'un générateur aléatoire de code C. L'objectif était de
+générer des grandes fonctions effectuant des calculs compliqués, sans appels
+de fonctions, pour pouvoir analyser le code machine optimisé généré par des
+compilateurs différents. Csmith peut être configuré pour en tel usage, mais
+nous avons vite trouvé que le compilateur enlève presque tous les calculs
+présents au niveau code source. Même les boucles imbriquées entières
+disparaissent souvent dans le code machine compilé à partir du code source
+généré par Csmith. Ceci nous empêche de faire les analyses intéressantes sur
+la code machine finale.
+
+Le problème de base est que Csmith génère des programmes qui ne contiennent
+presque que de \emph{code mort}~: des calculs dont les résultants ne sont
+jamais utilisés. Les compilateurs enlevent tout le code mort, laissant très
+peu de possibilités d'appliquer nos analyses.
+
+Cet article décrit \ldrgen, un nouveau générateur de code C guidée par une
+analyse de vivacité pour éviter de générer du code mort.
+
+
+\section{Analyse de la vivacité}
+
+
+
 
 \section{Quelques autres sections\dots}
 
