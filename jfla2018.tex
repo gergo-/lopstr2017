@@ -116,12 +116,18 @@ analyse de vivacité pour éviter de générer du code mort.
 
 \section{Analyse de la vivacité}
 
-Une variable est~\emph{vivante} à un point dans un programme si sa valeur a ce
-point peut être utilisée plus tard. Sinon, elle est~\emph{morte}. De la même
-façon, une affectation~\(v = e\) est vivante si elle définit une variable
-vivante, et morte sinon. Notre objectif est de ne générer pas de code mort,
-et en particulier, de ne générer que des programmes dans lesquels toutes les
-affectations sont vivantes.
+Une variable est~\emph{vivante} à un point dans un programme si sa valeur a
+ce point peut être utilisée plus tard. Sinon, elle est~\emph{morte}. De la
+même façon, une affectation~\(v = e\) est vivante si elle définit une
+variable vivante, et morte sinon. Par exemple, dans un morceau de code
+comme~\texttt{x = y + z; return y}, la variable~\texttt{x} est morte juste
+après son affectation car sa valeur n'est jamais utilisée. L'affectation
+elle-même est donc morte aussi, et elle peut être enlevée du programme sans
+changer son sens.
+
+Notre objectif est de ne générer pas de code mort, et en particulier, de ne
+générer que des programmes dans lesquels toutes les affectations sont
+vivantes.
 
 \subsection{Analyse itérative}
 
@@ -168,9 +174,32 @@ L'analyse est présentée en Figure~\ref{fig:rules} comme un système de règles
 d'inférence. L'information inférée sont des
 triples~\(\triple{\livein{S}}{S}{\liveout{S}}\) d'une instruction~\(S\) et
 ses ensembles de variables vivantes avant et après l'instruction
-(\(\livein{S}\), \(\liveout{S}\)).
+(\(\livein{S}\), \(\liveout{S}\)). Les règles contiennent deux sortes
+d'hypothèses~: L'une sont les équations de propagation de l'information de
+l'analyse de flot de données. En particulier, la règle~\textsc{Assign} pour
+les affectations de la forme~\(v = e\) a comme hypothèse
+l'équation~\(\livein{S} = (\liveout{S} \setminus \{v\}) \union FV(e)\), ce
+qui est identique au cas de l'analyse de flot de données itérative.
 
-\dots
+La deuxième sorte d'hypothèses sont les conditions pour assurer que les
+programmes qui contiennent du code mort ne sont pas acceptés par le système.
+La condition la plus importante est celle de la règle~\textsc{Assign}: Une
+affectation d'une variable~\(v\) ne peut être acceptée que si~\(v\) est
+vivante après l'affectation. De la même façon, la condition~\(S_1 \neq \{\}
+\lor S_2 \neq \{\}\) pour~\textsc{If} assure que les instructions de
+branchement inutiles comme~\texttt{if (x) \{\} else \{\}} ne sont pas
+acceptées.
+
+Un programme~\(S\) ne contient pas de code mort si le
+triple~\(\triple{\livein{S}}{S}{\emptyset}\) peut être dérivée dans le
+système de règles d'inférence.
+
+Le traitement de boucles est plus compliqué à cause de la dépendance
+cyclique entre l'ensemble~\(\livein{B}\) de variables vivantes au début du
+corps~\(B\) de la boucle, et l'ensemble~\(\liveout{B}\) de variables
+vivantes à la fin du corps de la boucle. La condition de minimalité exprime
+que la solution désirée est un point fixe minimale du système d'équations.
+Un point fixe unique minimale existe toujours~\cite{nielson.etal-1999}.
 
 
 
@@ -192,47 +221,48 @@ ses ensembles de variables vivantes avant et après l'instruction
 
 \[
 \inferrule*[left=Assign]{
-    v \in \liveout{L} \\
-    \livein{L} = (\liveout{L} \setminus \{v\}) \union FV(e)
+    v \in \liveout{S} \\
+    \livein{S} = (\liveout{S} \setminus \{v\}) \union FV(e)
 }{
-    \triple{\livein{L}}{v\ \mathtt{=}\ e}{\liveout{L}}
+    \triple{\livein{S}}{v\ \mathtt{=}\ e}{\liveout{S}}
 }
 \]
 
 \[
 \inferrule*[left=Sequence]{
-    \triple{\livein{L_1}}{S_1}{\livein{L_2}} \\
-    \triple{\livein{L_2}}{S_2}{\liveout{L_2}} \\
-    \livein{L_2} \neq \emptyset
+    \triple{\livein{S_1}}{S_1}{\livein{S_2}} \\
+    \triple{\livein{S_2}}{S_2}{\liveout{S_2}} \\
+    \livein{S_2} \neq \emptyset
 }{
-    \triple{\livein{L_1}}{S_1\ \mathtt{;}\ S_2}{\liveout{L_2}}
+    \triple{\livein{S_1}}{S_1\ \mathtt{;}\ S_2}{\liveout{S_2}}
 }
 \]
 
 \[
 \inferrule*[left=If]{
-    \triple{\livein{L_1}}{S_1}{\liveout{L}} \\
-    \triple{\livein{L_2}}{S_2}{\liveout{L}} \\
-    \livein{L} = \livein{L_1} \union \livein{L_2} \union FV(c)
+    \triple{\livein{S_1}}{S_1}{\liveout{S}} \\
+    \triple{\livein{S_2}}{S_2}{\liveout{S}} \\
+    \livein{S} = \livein{S_1} \union \livein{S_2} \union FV(c) \\
+    S_1 \neq \{\} \lor S_2 \neq \{\}
 }{
-    \triple{\livein{L}}
+    \triple{\livein{S}}
            {\mathtt{if\ (}c\mathtt{)}\ S_1\ \mathtt{else}\ S_2}
-           {\liveout{L}}
+           {\liveout{S}}
 }
 \]
 
 \[
 \inferrule[While]{
     \triple{\livein{B}}{S}{\liveout{B}} \\
-    \liveout{B} = \liveout{L} \union \livein{B} \union FV(c)
+    \liveout{B} = \liveout{S} \union \livein{B} \union FV(c)
         \mbox{ (minimal)} \\
     % \liveout{B}\ \mbox{minimal} \\
-    \livein{L} = \livein{B} \union \liveout{L} \\
-    \liveout{L} \neq \emptyset
+    \livein{S} = \livein{B} \union \liveout{S} \\
+    \liveout{S} \neq \emptyset
 }{
-    \triple{\livein{L}}
+    \triple{\livein{S}}
            {\mathtt{while\ (}c\mathtt{)}\ S}
-           {\liveout{L}}
+           {\liveout{S}}
 }
 \]
 \caption{Système de règles d'inférence pour la recognition de programmes
