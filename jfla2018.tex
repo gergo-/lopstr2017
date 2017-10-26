@@ -47,6 +47,28 @@ Inria Saclay \\
 % make listings not super-ugly
 \lstset{language=[Objective]Caml,columns=fullflexible,emphstyle=\emph,
         mathescape=true,showstringspaces=false,stringstyle=\texttt}
+% WTF, listings?
+% https://stackoverflow.com/questions/1116266/listings-in-latex-with-utf-8-or-at-least-german-umlauts
+\lstset{%
+literate=%
+{é}{{\'{e}}}1
+{è}{{\`{e}}}1
+{ê}{{\^{e}}}1
+{ë}{{\¨{e}}}1
+{û}{{\^{u}}}1
+{ù}{{\`{u}}}1
+{â}{{\^{a}}}1
+{à}{{\`{a} }}1  % hack super débile
+{î}{{\^{i}}}1
+{ô}{{\^{o}}}1
+{ç}{{\c{c}}}1
+{Ç}{{\c{C}}}1
+{É}{{\'{E}}}1
+{Ê}{{\^{E}}}1
+{À}{{\`{A}}}1
+{Â}{{\^{A}}}1
+{Î}{{\^{I}}}1
+}
 
 \begin{document}
 \maketitle
@@ -55,7 +77,7 @@ Inria Saclay \\
 \begin{abstract}
 Les programmes générés aléatoirement sont un bon moyen de tester des
 compilateurs et des outils d'analyse de logiciel. Des centaines de bogues
-ont été trouvé dans des compilateurs C très utilisés (GCC, Clang) par des
+ont été trouvés dans des compilateurs C très utilisés (GCC, Clang) par des
 tests aléatoires. Pourtant, les générateurs existants peuvent générer
 beaucoup de code mort (dont les résultats ne sont jamais utilisés). Compiler
 un tel programme laisse relativement peu de possibilités d'exercer les
@@ -136,12 +158,13 @@ données~\cite{nielson.etal-1999}. Elle parcourt le graphe de flot de
 contrôle du programme en arrière et itère jusqu'à trouver un point fixe.
 Chaque instruction~\(S\) est liée à deux ensembles de variables vivantes
 juste avant~(\(\livein{S}\)) et juste après~(\(\liveout{S}\)) l'instruction.
-Ces ensembles sont liés par les équations spécifiques à l'instruction qui
-décrivent la propagation de l'information. Pour une affectation~\(v = e\) de
-la valeur d'une expression~\(e\) contenant l'ensemble de variables~\(FV(e)\)
-à la variable~\(v\), la propagation est faite par l'équation suivante:
+Ces ensembles sont liés par des fonctions~\(f_S\) spécifiques à
+l'instruction~\(S\) qui décrivent la propagation de l'information. Pour une
+affectation~\(v = e\) de la valeur d'une expression~\(e\) contenant
+l'ensemble de variables~\(FV(e)\) à la variable~\(v\), la propagation est
+faite par l'équation suivante:
 \[
-\livein{S} = (\liveout{S} \setminus \{v\}) \union FV(e)
+\livein{S} = f_{v = e}= (\liveout{S} \setminus \{v\}) \union FV(e)
 \]
 
 Pour une instruction de branchement avec une condition~\(c\) (comme
@@ -170,8 +193,8 @@ structure de l'arbre de syntaxe abstraite. Les approches structurelles ne
 sont appropriées qu'aux programmes structurés (sans~\texttt{goto}
 etc.), mais cela suffit pour notre générateur.
 
-L'analyse est présentée en Figure~\ref{fig:rules} comme un système de règles
-d'inférence. L'information inférée sont des
+L'analyse est présentée dans la figure~\ref{fig:rules} comme un système de
+règles d'inférence. L'information inférée sont des
 triples~\(\triple{\livein{S}}{S}{\liveout{S}}\) d'une instruction~\(S\) et
 ses ensembles de variables vivantes avant et après l'instruction
 (\(\livein{S}\), \(\liveout{S}\)). Les règles contiennent deux sortes
@@ -200,10 +223,6 @@ corps~\(B\) de la boucle, et l'ensemble~\(\liveout{B}\) de variables
 vivantes à la fin du corps de la boucle. La condition de minimalité exprime
 que la solution désirée est un point fixe minimale du système d'équations.
 Un point fixe unique minimale existe toujours~\cite{nielson.etal-1999}.
-
-
-
-\section{Quelques autres sections\dots}
 
 \begin{figure}
 \[
@@ -253,15 +272,14 @@ Un point fixe unique minimale existe toujours~\cite{nielson.etal-1999}.
 
 \[
 \inferrule[While]{
-    \triple{\livein{B}}{S}{\liveout{B}} \\
+    \triple{\livein{B}}{B}{\liveout{B}} \\
     \liveout{B} = \liveout{S} \union \livein{B} \union FV(c)
         \mbox{ (minimal)} \\
-    % \liveout{B}\ \mbox{minimal} \\
     \livein{S} = \livein{B} \union \liveout{S} \\
     \liveout{S} \neq \emptyset
 }{
     \triple{\livein{S}}
-           {\mathtt{while\ (}c\mathtt{)}\ S}
+           {\mathtt{while\ (}c\mathtt{)}\ B}
            {\liveout{S}}
 }
 \]
@@ -270,52 +288,111 @@ sans code mort}
 \label{fig:rules}
 \end{figure}
 
+
+\section{Génération de code non mort}
+
+Les règles d'inférence peuvent être interprétées comme un générateur
+exécutable aléatoire (ou exhaustif) de programmes sans code mort. Comme
+l'analyse traditionnelle de vivacité, la génération se fait en arrière,
+c'est-à-dire, dans la direction opposante au flot de contrôle.
+
+Le générateur commence par générer une variable~\(v\) et une
+instruction~\texttt{return \(v\)}. L'ensemble de variables vivantes avant
+cette instruction est~\(L = \{v\}\). Le générateur applique des fonctions
+pour générer des nouvelles instructions aléatoires étant donné un ensemble
+de variables vivantes. Les nouvelles instructions~\(S\) sont préfixées au
+programme, et l'ensemble~\(L\) est mis à jour selon la fonction
+correspondante~\(f_S\). Cet ensemble guide le générateur~: En particulier,
+pour générer une affectation d'une variable~\(v\), \(L\) doit contenir~\(v\)
+à ce point dans le programme. L'itération se termine après un nombre
+prédéfini d'instructions, ou si jamais l'ensemble~\(L\) devient vide. La
+figure~\ref{fig:generator} contient le pseudo-code du générateur dans un
+langage fonctionnel.
+
 \begin{figure}
 \lstset{emph={v,L,S,e,code,c,t,f,V,B}}
 \begin{lstlisting}
 let random_statements L code =
     if L $\neq \emptyset$ then
-        let (S, $L'$) = random_statement L;
+        let (S, $L'$) = random_statement L in
         random_statements $L'$ (S :: code)
     else
         (code, L)
 
 let random_statement L =
-    let statement_generator = random_select [assignment; branch; loop];
+    let statement_generator = random_select [assignment; branch; loop] in
     statement_generator L
 
 let assignment L =
-    let v = random_select L;
-    let e = random_expression ();
+    let v = random_select L in
+    let e = random_expression () in
     ("$v$ = $e$", $(L \setminus \{v\}) \union FV(e)$)
 
 let branch L =
-    let (t, $L_1$) = random_statements L [];
-    let (f, $L_2$) = random_statements L [];
-    let c = random_expression ();
+    let (t, $L_1$) = random_statements L [] in
+    let (f, $L_2$) = random_statements L [] in
+    let c = random_expression () in
     ("if ($c$) $t$ else $f$", $L_1 \union L_2 \union FV(c)$)
 
 let loop L =
-    (* See main text for explanation. *)
-    let c = random_expression ();
-    let $B'$ = random_variable_set ();
-    let (code, L') = random_statements $(L \union B' \union FV(c))$ [];
-    let $V = \{ b \in B' \mid b \notin L' \mbox{ or \(b\) not used in \(S\)}\}$;
+    (* Générer un point fixe pour la boucle, puis la boucle elle-même. *)
+    let c = random_expression () in
+    let $B'$ = random_variable_set () in
+    let (code, L') = random_statements $(L \union B' \union FV(c))$ [] in
+    let $V = \{ b \in B' \mid b \notin L' \mbox{ ou \(b\) n'est pas utilisée en \(code\)}\}$ in
     if $V \neq \emptyset$ then
-        let e = random_expression_on_variables V;
-        let v = random_select $L'$;
-        let code' = "$v$ = $e$" :: code;
+        let e = random_expression_on_variables V in
+        let v = random_select $L'$ in
+        let code' = "$v$ = $e$" :: code in
         ("while ($c$) $code'$", $(L' \setminus \{v\}) \union V \union L$)
     else
         ("while ($c$) $code$", $L' \union L$)
 
-(* Start generation with the terminating return statement. *)
+(* Commencer la génération à la fin du programme. *)
 let v = random_variable ()
 let (code, L) = random_statements {v} ["return $v$"]
 \end{lstlisting}
-\caption{Pseudocode of a liveness-driven random program generator.}
+\caption{Pseudo-code du générateur aléatoire guidée par la vivacité.}
 \label{fig:generator}
 \end{figure}
+
+Lors de la génération des boucles, nous voudrions éviter la construction
+d'un graphe de flot de contrôle et l'itération jusqu'à un point fixe de la
+boucle. En effet, nous ne pouvons pas facilement faire une analyse itérative
+d'un corps de boucle qui n'existe pas encore.
+
+Pour éviter ce problème cyclique, notre générateur choisit d'abord un
+ensemble de variables qui doivent devenir vivantes au début du corps de la
+boucle, puis génère le corps lui-même. Finalement, il peut générer des
+instructions supplémentaires pour assurer la validité du choix de variables.
+
+Plus précisément, nous cherchons à générer une liste~\(B\) d'instructions et
+un ensemble~\(\livein{B}\) tels que~\(\livein{B} = f_B(\liveout{B})\)
+et~\(\liveout{B} = \liveout{S} \union \livein{B} \union FV(c)\), étant
+donnés~\(\liveout{S}\) et une expression~\(c\) pour la condition de la
+boucle. Nous générons un ensemble~\(B'\) de nouvelles variables pour
+représenter les variables intéressantes pour le cas des boucles~: Les
+variables utilisées dans la boucle avec une valeur qui peut venir d'une
+itération précédente de la même boucle. Dit autrement, ces variables peuvent
+être affectées par le corps de la boucle, mais elles doivent aussi avoir
+d'utilisations dans le corps de la boucle.
+
+Après avoir choisi l'ensemble~\(B'\), nous pouvons générer une liste
+d'instructions sous l'hypothèse que les variables dans
+l'ensemble~\(\liveout{S} \union \livein{B} \union FV(c)\) sont vivantes à sa
+fin. Le générateur rend cette liste d'instructions (appelée~\(code\) en
+figure~\ref{fig:generator}) et l'ensemble~\(L'\) de variables vivantes à son
+début. Pour que~\(code\) puisse servir comme corps de boucle, il suffit
+d'assurer que notre choix de~\(B'\) satisfait la condition ci-dessus~:
+Chaque variable~\(b \in B'\) doit être utilisée, et elle doit être vivante
+au début de la boucle. Il suffit de préfixer~\(code\) avec une instruction
+qui utilise toutes les variables~\(b\) où ce n'est pas encore le cas pour
+obtenir une liste finale~\(B\) et un ensemble~\(\livein{B}\) qui satisfont
+\(\livein{B} = f_B(\liveout{B})\), \(\liveout{B} = \liveout{S} \union B'
+\union FV(c)\), et~\(B' \subseteq \livein{B}\).
+
+
+\section{Quelques autres sections\dots}
 
 \begin{quote}
 \begin{alltt}
