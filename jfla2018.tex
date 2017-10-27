@@ -107,29 +107,27 @@ Ce papier est une version courte d'un article présenté à LOPSTR~2017.
 Les compilateurs pour les langages de programmation modernes sont
 compliqués et difficiles à comprendre. Malgré les avances en vérification de
 compilateurs~\cite{leroy-2009,tan-2016}, la plupart des compilateurs
-réalistes ne sommes pas vérifiés. Il faut de tests pour avoir de la
-confiance en leur correction. Une approche populaire est le test aléatoire,
+réalistes ne sont pas vérifiés formellement. Il faut des tests pour acquérir une confiance en leur correction partielle. Une approche populaire est le test aléatoire,
 fait avec des fichiers d'entrée produits par un générateur aléatoire de
 programmes. L'outil le plus connu dans ce domaine est Csmith, un générateur
 aléatoire de programmes C. Csmith est très puissant~: il a trouvé des
 centaines de bogues dans des compilateurs très utilisés comme GCC et Clang,
-et même dans des parties non vérifiées du compilateur vérifié
+et même quelques bogues dans des parties non vérifiées du compilateur vérifié
 CompCert~\cite{csmith-2011}.
 
-Dans un projet de tests des optimisations effectués par des compilateurs C
-nous avions besoin d'un générateur aléatoire de code C. L'objectif était de
-générer des grandes fonctions effectuant des calculs compliqués, sans appels
+Le travail présenté ici provient d'un projet de test aléatoire des optimisations effectuées par des compilateurs C.
+Nous avions besoin d'un générateur aléatoire produisant de grandes fonctions effectuant des calculs compliqués, sans appels
 de fonctions, pour pouvoir analyser le code machine optimisé généré par des
-compilateurs différents. Csmith peut être configuré pour en tel usage, mais
-nous avons vite trouvé que le compilateur enlève presque tous les calculs
-présents au niveau code source. Même les boucles imbriquées entières
+compilateurs différents. Csmith peut être configuré pour cet usage, mais
+nous avons découvert que le compilateur enlève presque tous les calculs
+présents dans le code source généré par Csmith. Même des boucles imbriquées entières
 disparaissent souvent dans le code machine compilé à partir du code source
 généré par Csmith. Ceci nous empêche de faire les analyses intéressantes sur
-la code machine finale.
+la code machine final.
 
-Le problème de base est que Csmith génère des programmes qui ne contiennent
-presque que de~\emph{code mort}~: des calculs dont les résultants ne sont
-jamais utilisés. Les compilateurs enlevent tout le code mort, laissant très
+Le problème vient du fait que Csmith génère des programmes qui ne contiennent
+presque que du~\emph{code mort}~: des calculs dont les résultants ne sont
+jamais utilisés. Les compilateurs enlèvent tout le code mort, laissant très
 peu de possibilités d'appliquer nos analyses.
 
 Cet article décrit \ldrgen, un nouveau générateur de code C guidée par une
@@ -138,16 +136,20 @@ analyse de vivacité pour éviter de générer du code mort.
 
 \section{Analyse de la vivacité}
 
-Une variable est~\emph{vivante} à un point dans un programme si sa valeur a
-ce point peut être utilisée plus tard. Sinon, elle est~\emph{morte}. De la
+Une variable est~\emph{vivante} à un point donné d'un programme si sa valeur a
+ce point peut être utilisée plus tard.
+% Gabriel: par "point", est-ce qu'on parle d'une position (statique) dans le code,
+% ou d'une étape de l'exécution (dynamique) du programme ? Dans le premier cas,
+% que veut dire "plus tard" ?
+Sinon, elle est~\emph{morte}. De la
 même façon, une affectation~\(v = e\) est vivante si elle définit une
 variable vivante, et morte sinon. Par exemple, dans un morceau de code
 comme~\texttt{x = y + z; return y}, la variable~\texttt{x} est morte juste
 après son affectation car sa valeur n'est jamais utilisée. L'affectation
 elle-même est donc morte aussi, et elle peut être enlevée du programme sans
-changer son sens.
+en changer le sens.
 
-Notre objectif est de ne générer pas de code mort, et en particulier, de ne
+Notre objectif est de ne générer aucun code mort, et en particulier, de ne
 générer que des programmes dans lesquels toutes les affectations sont
 vivantes.
 
@@ -156,8 +158,9 @@ vivantes.
 L'analyse de la vivacité est un analyse classique de flot de
 données~\cite{nielson.etal-1999}. Elle parcourt le graphe de flot de
 contrôle du programme en arrière et itère jusqu'à trouver un point fixe.
-Chaque instruction~\(S\) est liée à deux ensembles de variables vivantes
+Chaque instruction~\(S\) est liée à deux ensembles de variables vivantes :
 juste avant~(\(\livein{S}\)) et juste après~(\(\liveout{S}\)) l'instruction.
+% Gabriel: Ici il y a confusion entre "instruction" (f_S) et "position dans le code (livein(S)). Est-ce voulu/désirable ?
 Ces ensembles sont liés par des fonctions~\(f_S\) spécifiques à
 l'instruction~\(S\) qui décrivent la propagation de l'information. Pour une
 affectation~\(v = e\) de la valeur d'une expression~\(e\) contenant
