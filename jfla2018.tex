@@ -406,8 +406,9 @@ figure~\ref{fig:generator}. Pour l'instant, l'outil génère un sous-ensemble
 du langage~C avec des opérations arithmétiques et bit à bit sur tous les
 types de base, ainsi que des branchements avec~\texttt{if}, des
 boucles~\texttt{while}, et des boucles~\texttt{for} d'une forme restreinte
-sur des tableaux de taille fixe. Il ne génère pas encore de~\texttt{struct}
-ni de l'arithmétique sur des pointeurs.
+pour calculer une opération de réduction sur des tableaux de taille fixe. Il
+ne génère pas encore de~\texttt{struct} ni de l'arithmétique sur des
+pointeurs.
 
 % boucles for, configuration, flot de contrôle...
 
@@ -427,7 +428,7 @@ débordements.)
 Nos résultats pour le code généré par~1000 appels de chaque outil sont
 résumés dans la table~\ref{tab:results}. La première partie de la table
 montre que nous avons choisi des options de configuration pour les deux
-outils pour générer des quantités de code source comparable. Ceci nous
+outils pour générer des quantités comparables de code source. Ceci nous
 permet de faire une comparaison juste des programmes générés.
 
 La deuxième partie de la table montre le nombre d'instructions machine
@@ -490,11 +491,11 @@ des grandes quantités d'instructions machine variées générés par des
 compilateurs optimisants.
 %
 \ldrgen\ est guidé par une analyse structurelle de vivacité lors de la
-génération de code. Une nouvelle approche à l'analyse flot de données
+génération de code. Une nouvelle approche à l'analyse de flot de données
 structurelle interprétée comme système d'inférence nous permet de faire
 l'analyse sans devoir implémenter l'itération jusqu'à un point fixe.
 %
-Par rapport au générateur de code Csmith, \ldrgen génère une plus
+Par rapport au générateur de code Csmith, \ldrgen\ génère une plus
 grande quantité de code machine plus varié.
 
 
