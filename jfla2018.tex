@@ -171,8 +171,8 @@ l'ensemble~\(\livein{S}\) de variables vivantes juste avant~\(S\), et
 l'ensemble~\(\liveout{S}\) de celles vivantes juste après~\(S\).
 Ces ensembles sont liés par des fonctions~\(f_S\) spécifiques à
 l'instruction~\(S\) qui décrivent la propagation de l'information. Pour une
-affectation~\(v = e\) de la valeur d'une expression~\(e\) contenant
-l'ensemble de variables~\(FV(e)\) à la variable~\(v\), la propagation est
+affectation~\(v = e\), à la variable~\(v\), de la valeur d'une expression~\(e\) contenant
+l'ensemble de variables~\(FV(e)\), la propagation est
 faite par l'équation suivante:
 \[
 \livein{S} = f_{v = e}= (\liveout{S} \setminus \{v\}) \union FV(e)
@@ -228,12 +228,12 @@ Un programme~\(S\) ne contient pas de code mort si le
 triple~\(\triple{\livein{S}}{S}{\emptyset}\) peut être dérivée dans le
 système de règles d'inférence.
 
-Le traitement de boucles est plus compliqué à cause de la dépendance
-cyclique entre l'ensemble~\(\livein{B}\) de variables vivantes au début du
-corps~\(B\) de la boucle, et l'ensemble~\(\liveout{B}\) de variables
+Le traitement des boucles est plus compliqué à cause de la dépendance
+cyclique entre l'ensemble~\(\livein{B}\) des variables vivantes au début du
+corps~\(B\) de la boucle, et l'ensemble~\(\liveout{B}\) des variables
 vivantes à la fin du corps de la boucle. La condition de minimalité exprime
-que la solution désirée est un point fixe minimale du système d'équations.
-Un point fixe unique minimale existe toujours~\cite{nielson.etal-1999}.
+que la solution désirée est un point fixe minimal du système d'équations.
+Un point fixe unique minimal existe toujours~\cite{nielson.etal-1999}.
 
 \begin{figure}
 \[
@@ -305,15 +305,15 @@ sans code mort}
 Les règles d'inférence peuvent être interprétées comme un générateur
 exécutable aléatoire (ou exhaustif) de programmes sans code mort. Comme
 l'analyse traditionnelle de vivacité, la génération se fait en arrière,
-c'est-à-dire, dans la direction opposante au flot de contrôle.
+c'est-à-dire dans la direction opposante au flot de contrôle.
 
 Le générateur commence par générer une variable~\(v\) et une
 instruction~\texttt{return \(v\)}. L'ensemble de variables vivantes avant
 cette instruction est~\(L = \{v\}\). Le générateur applique des fonctions
-pour générer des nouvelles instructions aléatoires étant donné un ensemble
+pour générer de nouvelles instructions aléatoires étant donné un ensemble
 de variables vivantes. Les nouvelles instructions~\(S\) sont préfixées au
 programme, et l'ensemble~\(L\) est mis à jour selon la fonction
-correspondante~\(f_S\). Cet ensemble guide le générateur~: En particulier,
+correspondante~\(f_S\). Cet ensemble guide le générateur~: en particulier,
 pour générer une affectation d'une variable~\(v\), \(L\) doit contenir~\(v\)
 à ce point dans le programme. L'itération se termine après un nombre
 prédéfini d'instructions, ou si jamais l'ensemble~\(L\) devient vide. La
