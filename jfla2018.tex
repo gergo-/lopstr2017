@@ -159,8 +159,8 @@ L'analyse de la vivacité est un analyse classique de flot de
 données~\cite{nielson.etal-1999}. Elle parcourt le graphe de flot de
 contrôle du programme en arrière et itère jusqu'à trouver un point fixe.
 Chaque instruction~\(S\) est liée à deux ensembles de variables vivantes :
-juste avant~(\(\livein{S}\)) et juste après~(\(\liveout{S}\)) l'instruction.
-% Gabriel: Ici il y a confusion entre "instruction" (f_S) et "position dans le code (livein(S)). Est-ce voulu/désirable ?
+l'ensemble~\(\livein{S}\) de variables vivantes juste avant~\(S\), et
+l'ensemble~\(\liveout{S}\) de celles vivantes juste après~\(S\).
 Ces ensembles sont liés par des fonctions~\(f_S\) spécifiques à
 l'instruction~\(S\) qui décrivent la propagation de l'information. Pour une
 affectation~\(v = e\) de la valeur d'une expression~\(e\) contenant
@@ -204,8 +204,8 @@ ses ensembles de variables vivantes avant et après l'instruction
 d'hypothèses~: L'une sont les équations de propagation de l'information de
 l'analyse de flot de données. En particulier, la règle~\textsc{Assign} pour
 les affectations de la forme~\(v = e\) a comme hypothèse
-l'équation~\(\livein{S} = (\liveout{S} \setminus \{v\}) \union FV(e)\), ce
-qui est identique au cas de l'analyse de flot de données itérative.
+l'équation~\(\livein{S} = (\liveout{S} \setminus \{v\}) \union FV(e)\),
+comme dans le cas de l'analyse de flot de données itérative.
 
 La deuxième sorte d'hypothèses sont les conditions pour assurer que les
 programmes qui contiennent du code mort ne sont pas acceptés par le système.
