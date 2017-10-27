@@ -228,6 +228,10 @@ Un programme~\(S\) ne contient pas de code mort si le
 triple~\(\triple{\livein{S}}{S}{\emptyset}\) peut être dérivée dans le
 système de règles d'inférence.
 
+% Gabriel: (c) pourrait être égal à (true) ou (false) pour tous les
+% chemins, auquel cas une des branches est effectivement morte. Il
+% s'agit ici d'une approximation.
+
 Le traitement des boucles est plus compliqué à cause de la dépendance
 cyclique entre l'ensemble~\(\livein{B}\) des variables vivantes au début du
 corps~\(B\) de la boucle, et l'ensemble~\(\liveout{B}\) des variables
@@ -299,6 +303,16 @@ sans code mort}
 \label{fig:rules}
 \end{figure}
 
+% Gabriel: je ne trouve pas clair de voir pourquoi les conditions de la forme
+%   S \neq \emptyset
+% sont nécessaires.
+%
+% Celle sur la séquence interdit d'écrire (return v; S), où S serait
+% du code mort. C'est utile.
+% Mais pourquoi les conditions sur Skip et While ?
+%
+% Peut-être que tu pourrais détailler le sens ou expliquer la
+% nécessité de *toutes* ces conditions de la deuxième sorte.
 
 \section{Génération de code non mort}
 
