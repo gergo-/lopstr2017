@@ -122,8 +122,8 @@ compilateurs différents. Csmith peut être configuré pour cet usage, mais
 nous avons découvert que le compilateur enlève presque tous les calculs
 présents dans le code source généré par Csmith. Même des boucles imbriquées entières
 disparaissent souvent dans le code machine compilé à partir du code source
-généré par Csmith. Ceci nous empêche de faire les analyses intéressantes sur
-la code machine final.
+généré par Csmith. Ceci nous empêche de faire des analyses intéressantes sur
+le code machine final.
 
 Le problème vient du fait que Csmith génère des programmes qui ne contiennent
 presque que du~\emph{code mort}~: des calculs dont les résultants ne sont
@@ -136,8 +136,8 @@ analyse de vivacité pour éviter de générer du code mort.
 
 \section{Analyse de la vivacité}
 
-Une variable est~\emph{vivante} à un point donné d'un programme si sa valeur a
-ce point peut être utilisée plus tard.
+Une variable est~\emph{vivante} à une position donné d'un programme si sa valeur a
+cette position peut être utilisée plus tard.
 % Gabriel: par "point", est-ce qu'on parle d'une position (statique) dans le code,
 % ou d'une étape de l'exécution (dynamique) du programme ? Dans le premier cas,
 % que veut dire "plus tard" ?
