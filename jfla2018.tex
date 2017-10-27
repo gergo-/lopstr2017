@@ -46,7 +46,15 @@ Inria Saclay \\
 
 % make listings not super-ugly
 \lstset{language=[Objective]Caml,columns=fullflexible,emphstyle=\emph,
-        mathescape=true,showstringspaces=false,stringstyle=\texttt}
+        mathescape=true,showstringspaces=false,
+        stringstyle=\texttt,commentstyle=\color{violet}}
+% Gabriel: j'ai mis "violet" parce que:
+% - utiliser de l'italique (mode par défaut) rend l'utilisation du
+% mode maths dans les commentaires peu lisible
+% - j'aurais préféré un gris foncé mais je n'ai pas trouvé comment le
+% nommer sans changer les options des paquets LaTeX, donc j'ai été
+% lâche; 'violet' rend plutôt bien en fait.
+
 % WTF, listings?
 % https://stackoverflow.com/questions/1116266/listings-in-latex-with-utf-8-or-at-least-german-umlauts
 \lstset{%
@@ -316,11 +324,10 @@ langage fonctionnel.
 \lstset{emph={v,L,S,e,code,c,t,f,V,B}}
 \begin{lstlisting}
 let random_statements L code =
-    if L $\neq \emptyset$ then
+    if L $= \emptyset$ then (code, L)
+    else
         let (S, $L'$) = random_statement L in
         random_statements $L'$ (S :: code)
-    else
-        (code, L)
 
 let random_statement L =
     let statement_generator = random_select [assignment; branch; loop] in
@@ -342,14 +349,14 @@ let loop L =
     let c = random_expression () in
     let $B'$ = random_variable_set () in
     let (code, L') = random_statements $(L \union B' \union FV(c))$ [] in
-    let $V = \{ b \in B' \mid b \notin L' \mbox{ ou \(b\) n'est pas utilisée en \(code\)}\}$ in
-    if $V \neq \emptyset$ then
+    let $V = \{ b \in B' \mid b \notin L' \}$ in (* les $b$ pas dans $code$ *)
+    if $V = \emptyset$ then
+        ("while ($c$) $code$", $L' \union L$)
+    else
         let e = random_expression_on_variables V in
         let v = random_select $L'$ in
         let code' = "$v$ = $e$" :: code in
         ("while ($c$) $code'$", $(L' \setminus \{v\}) \union V \union L$)
-    else
-        ("while ($c$) $code$", $L' \union L$)
 
 (* Commencer la génération à la fin du programme. *)
 let v = random_variable ()
