@@ -291,6 +291,11 @@ Un point fixe unique minimal existe toujours~\cite{nielson.etal-1999}.
     \liveout{B} = \liveout{S} \union \livein{B} \union FV(c)
         \mbox{ (minimal)} \\
     \livein{S} = \livein{B} \union \liveout{S} \\
+% Gabriel: Pourquoi n'a-t-on pas FV(c) dans livein{S},
+% puisqu'exécuter la boucle commence par tester c ?
+%
+% Note: si on avait livein{S} := livein{B} U liveout{S} U FV(c),
+% alors on pourrait avoir liveout{B} := livein{S}
     \liveout{S} \neq \emptyset
 }{
     \triple{\livein{S}}
@@ -385,10 +390,19 @@ d'un graphe de flot de contrôle et l'itération jusqu'à un point fixe de la
 boucle. En effet, nous ne pouvons pas facilement faire une analyse itérative
 d'un corps de boucle qui n'existe pas encore.
 
+%% Gabriel: Globalement je trouve que le paragraphe ci-dessous n'est
+%% pas facile à comprendre; j'y suis passé plusieurs fois et je n'ai
+%% toujours pas l'impression d'avoir tout bien compris. Je ne sais pas
+%% si on peut améliorer ça.
+
 Pour éviter ce problème cyclique, notre générateur choisit d'abord un
-ensemble de variables qui doivent devenir vivantes au début du corps de la
-boucle, puis génère le corps lui-même. Finalement, il peut générer des
-instructions supplémentaires pour assurer la validité du choix de variables.
+ensemble~\(\livein{B}\) de variables qui doivent devenir vivantes au
+début du corps de la boucle, puis génère le corps
+lui-même. Finalement, il peut générer des instructions supplémentaires
+pour assurer la validité du choix de variables.
+
+% Gabriel: je pense que rappeler la règle d'inférence pour 'while' ici
+% aiderait le lecteur à suivre.
 
 Plus précisément, nous cherchons à générer une liste~\(B\) d'instructions et
 un ensemble~\(\livein{B}\) tels que~\(\livein{B} = f_B(\liveout{B})\)
@@ -404,7 +418,12 @@ dans le corps de la boucle.
 Après avoir choisi l'ensemble~\(B'\), nous pouvons générer une liste
 d'instructions sous l'hypothèse que les variables dans
 l'ensemble~\(\liveout{S} \union \livein{B} \union FV(c)\) sont vivantes à sa
-fin. Le générateur rend cette liste d'instructions (appelée~\(code\) en
+fin.
+% Gabriel: Il me semble que le générateur utilise
+%   liveout{S} U B' U FV(c)
+% plutôt que
+%   liveout{S} U livein{B} U FV(c)
+Le générateur rend cette liste d'instructions (appelée~\(code\) en
 figure~\ref{fig:generator}) et l'ensemble~\(L'\) de variables vivantes à son
 début. Pour que~\(code\) puisse servir comme corps de boucle, il suffit
 d'assurer que notre choix de~\(B'\) satisfait la condition ci-dessus~:
@@ -418,7 +437,11 @@ obtenir une liste finale~\(B\) et un ensemble~\(\livein{B}\) qui satisfont
 
 \section{Implantation}
 
-Notre générateur \ldrgen\ est implantée dans un greffon pour Frama-C, ce qui
+% Gabriel: Implantation ou Implémentation ? (Moi j'utilise plutôt
+% implémentation, mais peut-être as-tu une préférence claire pour
+% Implantation ?)
+
+Notre générateur \ldrgen\ est implanté dans un greffon pour Frama-C, ce qui
 est un outil extensible pour l'analyse et transformation de logiciels écrits
 en C~\cite{frama-c}. \ldrgen\ est un logiciel libre, disponible
 à~\url{https://github.com/gergo-/ldrgen}. L'implantation du générateur
