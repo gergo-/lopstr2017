@@ -46,7 +46,15 @@ Inria Saclay \\
 
 % make listings not super-ugly
 \lstset{language=[Objective]Caml,columns=fullflexible,emphstyle=\emph,
-        mathescape=true,showstringspaces=false,stringstyle=\texttt}
+        mathescape=true,showstringspaces=false,
+        stringstyle=\texttt,commentstyle=\color{violet}}
+% Gabriel: j'ai mis "violet" parce que:
+% - utiliser de l'italique (mode par défaut) rend l'utilisation du
+% mode maths dans les commentaires peu lisible
+% - j'aurais préféré un gris foncé mais je n'ai pas trouvé comment le
+% nommer sans changer les options des paquets LaTeX, donc j'ai été
+% lâche; 'violet' rend plutôt bien en fait.
+
 % WTF, listings?
 % https://stackoverflow.com/questions/1116266/listings-in-latex-with-utf-8-or-at-least-german-umlauts
 \lstset{%
@@ -163,8 +171,8 @@ l'ensemble~\(\livein{S}\) de variables vivantes juste avant~\(S\), et
 l'ensemble~\(\liveout{S}\) de celles vivantes juste après~\(S\).
 Ces ensembles sont liés par des fonctions~\(f_S\) spécifiques à
 l'instruction~\(S\) qui décrivent la propagation de l'information. Pour une
-affectation~\(v = e\) de la valeur d'une expression~\(e\) contenant
-l'ensemble de variables~\(FV(e)\) à la variable~\(v\), la propagation est
+affectation~\(v = e\), à la variable~\(v\), de la valeur d'une expression~\(e\) contenant
+l'ensemble de variables~\(FV(e)\), la propagation est
 faite par l'équation suivante:
 \[
 \livein{S} = f_{v = e}= (\liveout{S} \setminus \{v\}) \union FV(e)
@@ -220,12 +228,16 @@ Un programme~\(S\) ne contient pas de code mort si le
 triple~\(\triple{\livein{S}}{S}{\emptyset}\) peut être dérivée dans le
 système de règles d'inférence.
 
-Le traitement de boucles est plus compliqué à cause de la dépendance
-cyclique entre l'ensemble~\(\livein{B}\) de variables vivantes au début du
-corps~\(B\) de la boucle, et l'ensemble~\(\liveout{B}\) de variables
+% Gabriel: (c) pourrait être égal à (true) ou (false) pour tous les
+% chemins, auquel cas une des branches est effectivement morte. Il
+% s'agit ici d'une approximation.
+
+Le traitement des boucles est plus compliqué à cause de la dépendance
+cyclique entre l'ensemble~\(\livein{B}\) des variables vivantes au début du
+corps~\(B\) de la boucle, et l'ensemble~\(\liveout{B}\) des variables
 vivantes à la fin du corps de la boucle. La condition de minimalité exprime
-que la solution désirée est un point fixe minimale du système d'équations.
-Un point fixe unique minimale existe toujours~\cite{nielson.etal-1999}.
+que la solution désirée est un point fixe minimal du système d'équations.
+Un point fixe unique minimal existe toujours~\cite{nielson.etal-1999}.
 
 \begin{figure}
 \[
@@ -279,6 +291,11 @@ Un point fixe unique minimale existe toujours~\cite{nielson.etal-1999}.
     \liveout{B} = \liveout{S} \union \livein{B} \union FV(c)
         \mbox{ (minimal)} \\
     \livein{S} = \livein{B} \union \liveout{S} \\
+% Gabriel: Pourquoi n'a-t-on pas FV(c) dans livein{S},
+% puisqu'exécuter la boucle commence par tester c ?
+%
+% Note: si on avait livein{S} := livein{B} U liveout{S} U FV(c),
+% alors on pourrait avoir liveout{B} := livein{S}
     \liveout{S} \neq \emptyset
 }{
     \triple{\livein{S}}
@@ -291,21 +308,31 @@ sans code mort}
 \label{fig:rules}
 \end{figure}
 
+% Gabriel: je ne trouve pas clair de voir pourquoi les conditions de la forme
+%   S \neq \emptyset
+% sont nécessaires.
+%
+% Celle sur la séquence interdit d'écrire (return v; S), où S serait
+% du code mort. C'est utile.
+% Mais pourquoi les conditions sur Skip et While ?
+%
+% Peut-être que tu pourrais détailler le sens ou expliquer la
+% nécessité de *toutes* ces conditions de la deuxième sorte.
 
 \section{Génération de code non mort}
 
 Les règles d'inférence peuvent être interprétées comme un générateur
 exécutable aléatoire (ou exhaustif) de programmes sans code mort. Comme
 l'analyse traditionnelle de vivacité, la génération se fait en arrière,
-c'est-à-dire, dans la direction opposante au flot de contrôle.
+c'est-à-dire dans la direction opposante au flot de contrôle.
 
 Le générateur commence par générer une variable~\(v\) et une
 instruction~\texttt{return \(v\)}. L'ensemble de variables vivantes avant
 cette instruction est~\(L = \{v\}\). Le générateur applique des fonctions
-pour générer des nouvelles instructions aléatoires étant donné un ensemble
+pour générer de nouvelles instructions aléatoires étant donné un ensemble
 de variables vivantes. Les nouvelles instructions~\(S\) sont préfixées au
 programme, et l'ensemble~\(L\) est mis à jour selon la fonction
-correspondante~\(f_S\). Cet ensemble guide le générateur~: En particulier,
+correspondante~\(f_S\). Cet ensemble guide le générateur~: en particulier,
 pour générer une affectation d'une variable~\(v\), \(L\) doit contenir~\(v\)
 à ce point dans le programme. L'itération se termine après un nombre
 prédéfini d'instructions, ou si jamais l'ensemble~\(L\) devient vide. La
@@ -316,11 +343,10 @@ langage fonctionnel.
 \lstset{emph={v,L,S,e,code,c,t,f,V,B}}
 \begin{lstlisting}
 let random_statements L code =
-    if L $\neq \emptyset$ then
+    if L $= \emptyset$ then (code, L)
+    else
         let (S, $L'$) = random_statement L in
         random_statements $L'$ (S :: code)
-    else
-        (code, L)
 
 let random_statement L =
     let statement_generator = random_select [assignment; branch; loop] in
@@ -342,14 +368,14 @@ let loop L =
     let c = random_expression () in
     let $B'$ = random_variable_set () in
     let (code, L') = random_statements $(L \union B' \union FV(c))$ [] in
-    let $V = \{ b \in B' \mid b \notin L' \mbox{ ou \(b\) n'est pas utilisée en \(code\)}\}$ in
-    if $V \neq \emptyset$ then
+    let $V = \{ b \in B' \mid b \notin L' \}$ in (* les $b$ pas dans $code$ *)
+    if $V = \emptyset$ then
+        ("while ($c$) $code$", $L' \union L$)
+    else
         let e = random_expression_on_variables V in
         let v = random_select $L'$ in
         let code' = "$v$ = $e$" :: code in
         ("while ($c$) $code'$", $(L' \setminus \{v\}) \union V \union L$)
-    else
-        ("while ($c$) $code$", $L' \union L$)
 
 (* Commencer la génération à la fin du programme. *)
 let v = random_variable ()
@@ -364,32 +390,46 @@ d'un graphe de flot de contrôle et l'itération jusqu'à un point fixe de la
 boucle. En effet, nous ne pouvons pas facilement faire une analyse itérative
 d'un corps de boucle qui n'existe pas encore.
 
+%% Gabriel: Globalement je trouve que le paragraphe ci-dessous n'est
+%% pas facile à comprendre; j'y suis passé plusieurs fois et je n'ai
+%% toujours pas l'impression d'avoir tout bien compris. Je ne sais pas
+%% si on peut améliorer ça.
+
 Pour éviter ce problème cyclique, notre générateur choisit d'abord un
-ensemble de variables qui doivent devenir vivantes au début du corps de la
-boucle, puis génère le corps lui-même. Finalement, il peut générer des
-instructions supplémentaires pour assurer la validité du choix de variables.
+ensemble~\(\livein{B}\) de variables qui doivent devenir vivantes au
+début du corps de la boucle, puis génère le corps
+lui-même. Finalement, il peut générer des instructions supplémentaires
+pour assurer la validité du choix de variables.
+
+% Gabriel: je pense que rappeler la règle d'inférence pour 'while' ici
+% aiderait le lecteur à suivre.
 
 Plus précisément, nous cherchons à générer une liste~\(B\) d'instructions et
 un ensemble~\(\livein{B}\) tels que~\(\livein{B} = f_B(\liveout{B})\)
 et~\(\liveout{B} = \liveout{S} \union \livein{B} \union FV(c)\), étant
 donnés~\(\liveout{S}\) et une expression~\(c\) pour la condition de la
 boucle. Nous générons un ensemble~\(B'\) de nouvelles variables pour
-représenter les variables intéressantes pour le cas des boucles~: Les
+représenter les variables intéressantes pour le cas des boucles~: les
 variables utilisées dans la boucle avec une valeur qui peut venir d'une
 itération précédente de la même boucle. Dit autrement, ces variables peuvent
-être affectées par le corps de la boucle, mais elles doivent aussi avoir
-d'utilisations dans le corps de la boucle.
+être affectées par le corps de la boucle, mais elles doivent aussi être utilisées
+dans le corps de la boucle.
 
 Après avoir choisi l'ensemble~\(B'\), nous pouvons générer une liste
 d'instructions sous l'hypothèse que les variables dans
 l'ensemble~\(\liveout{S} \union \livein{B} \union FV(c)\) sont vivantes à sa
-fin. Le générateur rend cette liste d'instructions (appelée~\(code\) en
+fin.
+% Gabriel: Il me semble que le générateur utilise
+%   liveout{S} U B' U FV(c)
+% plutôt que
+%   liveout{S} U livein{B} U FV(c)
+Le générateur rend cette liste d'instructions (appelée~\(code\) en
 figure~\ref{fig:generator}) et l'ensemble~\(L'\) de variables vivantes à son
 début. Pour que~\(code\) puisse servir comme corps de boucle, il suffit
 d'assurer que notre choix de~\(B'\) satisfait la condition ci-dessus~:
-Chaque variable~\(b \in B'\) doit être utilisée, et elle doit être vivante
+chaque variable~\(b \in B'\) doit être utilisée, et elle doit être vivante
 au début de la boucle. Il suffit de préfixer~\(code\) avec une instruction
-qui utilise toutes les variables~\(b\) où ce n'est pas encore le cas pour
+qui utilise toutes les variables~\(b\) ne satisfaisant pas encore cette condition pour
 obtenir une liste finale~\(B\) et un ensemble~\(\livein{B}\) qui satisfont
 \(\livein{B} = f_B(\liveout{B})\), \(\liveout{B} = \liveout{S} \union B'
 \union FV(c)\), et~\(B' \subseteq \livein{B}\).
@@ -397,7 +437,11 @@ obtenir une liste finale~\(B\) et un ensemble~\(\livein{B}\) qui satisfont
 
 \section{Implantation}
 
-Notre générateur \ldrgen\ est implantée dans un greffon pour Frama-C, ce qui
+% Gabriel: Implantation ou Implémentation ? (Moi j'utilise plutôt
+% implémentation, mais peut-être as-tu une préférence claire pour
+% Implantation ?)
+
+Notre générateur \ldrgen\ est implanté dans un greffon pour Frama-C, ce qui
 est un outil extensible pour l'analyse et transformation de logiciels écrits
 en C~\cite{frama-c}. \ldrgen\ est un logiciel libre, disponible
 à~\url{https://github.com/gergo-/ldrgen}. L'implantation du générateur
@@ -407,8 +451,7 @@ du langage~C avec des opérations arithmétiques et bit à bit sur tous les
 types de base, ainsi que des branchements avec~\texttt{if}, des
 boucles~\texttt{while}, et des boucles~\texttt{for} d'une forme restreinte
 pour calculer une opération de réduction sur des tableaux de taille fixe. Il
-ne génère pas encore de~\texttt{struct} ni de l'arithmétique sur des
-pointeurs.
+ne génère pas encore de~\texttt{struct} ni d'arithmétique de pointeurs.
 
 % boucles for, configuration, flot de contrôle...
 
@@ -446,7 +489,7 @@ Nous regardons les nombres d'instructions machine différentes par fonction
 générée et au total. Même la fonction la plus diverse générée par Csmith
 contient moins de variété que la fonction médiane générée par \ldrgen. Au
 total, le code généré par \ldrgen\ permet une couverture du jeu
-d'instructions~40\,\% plus élevé par rapport au code généré par Csmith. Par
+d'instructions~40\,\% plus élevée par rapport au code généré par Csmith. Par
 inspection des ensembles d'instructions uniques, nous avons trouvé que
 presque toute la différence vient des instructions vectorielles (SIMD) qui
 sont émises pour les boucles~\texttt{for} sur des tableaux générées par
@@ -491,8 +534,7 @@ des grandes quantités d'instructions machine variées générés par des
 compilateurs optimisants.
 %
 \ldrgen\ est guidé par une analyse structurelle de vivacité lors de la
-génération de code. Une nouvelle approche à l'analyse de flot de données
-structurelle interprétée comme système d'inférence nous permet de faire
+génération de code. Une nouvelle approche structurelle de l'analyse de flot de données, interprétée comme système d'inférence, nous permet de faire
 l'analyse sans devoir implémenter l'itération jusqu'à un point fixe.
 %
 Par rapport au générateur de code Csmith, \ldrgen\ génère une plus
