@@ -48,12 +48,6 @@ Inria Saclay \\
 \lstset{language=[Objective]Caml,columns=fullflexible,emphstyle=\emph,
         mathescape=true,showstringspaces=false,
         stringstyle=\texttt,commentstyle=\color{violet}}
-% Gabriel: j'ai mis "violet" parce que:
-% - utiliser de l'italique (mode par défaut) rend l'utilisation du
-% mode maths dans les commentaires peu lisible
-% - j'aurais préféré un gris foncé mais je n'ai pas trouvé comment le
-% nommer sans changer les options des paquets LaTeX, donc j'ai été
-% lâche; 'violet' rend plutôt bien en fait.
 
 % WTF, listings?
 % https://stackoverflow.com/questions/1116266/listings-in-latex-with-utf-8-or-at-least-german-umlauts
@@ -97,7 +91,7 @@ est construit \anglais{bottom-up}, en combinaison avec une analyse de flot de
 données structurelle pour assurer que le système ne génère jamais de code
 mort.
 
-L'algorithme est implanté dans un greffon pour l'outil Frama-C. Nous
+L'algorithme est implémenté dans un greffon pour l'outil Frama-C. Nous
 l'évaluons en comparaison avec Csmith, le générateur aléatoire standard pour
 le langage C. Les programmes générés par notre outil compilent vers une plus
 grande quantité de code machine, avec une plus grande variété
@@ -146,9 +140,6 @@ analyse de vivacité pour éviter de générer du code mort.
 
 Une variable est~\emph{vivante} à une position donné d'un programme si sa valeur a
 cette position peut être utilisée plus tard.
-% Gabriel: par "point", est-ce qu'on parle d'une position (statique) dans le code,
-% ou d'une étape de l'exécution (dynamique) du programme ? Dans le premier cas,
-% que veut dire "plus tard" ?
 Sinon, elle est~\emph{morte}. De la
 même façon, une affectation~\(v = e\) est vivante si elle définit une
 variable vivante, et morte sinon. Par exemple, dans un morceau de code
@@ -247,7 +238,7 @@ Un point fixe unique minimal existe toujours~\cite{nielson.etal-1999}.
 }
 \qquad
 \inferrule*[left=Skip]{
-    L \neq \emptyset
+    % L \neq \emptyset
 }{
     \triple{L}{\mathtt{\{\}}}{L}
 }
@@ -288,14 +279,8 @@ Un point fixe unique minimal existe toujours~\cite{nielson.etal-1999}.
 \[
 \inferrule[While]{
     \triple{\livein{B}}{B}{\liveout{B}} \\
-    \liveout{B} = \liveout{S} \union \livein{B} \union FV(c)
-        \mbox{ (minimal)} \\
-    \livein{S} = \livein{B} \union \liveout{S} \\
-% Gabriel: Pourquoi n'a-t-on pas FV(c) dans livein{S},
-% puisqu'exécuter la boucle commence par tester c ?
-%
-% Note: si on avait livein{S} := livein{B} U liveout{S} U FV(c),
-% alors on pourrait avoir liveout{B} := livein{S}
+    \liveout{B} = \livein{S} \mbox{ (minimal)} \\
+    \livein{S} = \liveout{S} \union \livein{B} \union FV(c) \\
     \liveout{S} \neq \emptyset
 }{
     \triple{\livein{S}}
@@ -308,16 +293,6 @@ sans code mort}
 \label{fig:rules}
 \end{figure}
 
-% Gabriel: je ne trouve pas clair de voir pourquoi les conditions de la forme
-%   S \neq \emptyset
-% sont nécessaires.
-%
-% Celle sur la séquence interdit d'écrire (return v; S), où S serait
-% du code mort. C'est utile.
-% Mais pourquoi les conditions sur Skip et While ?
-%
-% Peut-être que tu pourrais détailler le sens ou expliquer la
-% nécessité de *toutes* ces conditions de la deuxième sorte.
 
 \section{Génération de code non mort}
 
@@ -368,7 +343,7 @@ let loop L =
     let c = random_expression () in
     let $B'$ = random_variable_set () in
     let (code, L') = random_statements $(L \union B' \union FV(c))$ [] in
-    let $V = \{ b \in B' \mid b \notin L' \}$ in (* les $b$ pas dans $code$ *)
+    let $V = \{ b \in B' \mid b \notin L' \lor \mbox{\(b\) n'a pas d'occurrences dans \(code\)} \}$ in
     if $V = \emptyset$ then
         ("while ($c$) $code$", $L' \union L$)
     else
@@ -417,12 +392,8 @@ dans le corps de la boucle.
 
 Après avoir choisi l'ensemble~\(B'\), nous pouvons générer une liste
 d'instructions sous l'hypothèse que les variables dans
-l'ensemble~\(\liveout{S} \union \livein{B} \union FV(c)\) sont vivantes à sa
+l'ensemble~\(\liveout{S} \union B' \union FV(c)\) sont vivantes à sa
 fin.
-% Gabriel: Il me semble que le générateur utilise
-%   liveout{S} U B' U FV(c)
-% plutôt que
-%   liveout{S} U livein{B} U FV(c)
 Le générateur rend cette liste d'instructions (appelée~\(code\) en
 figure~\ref{fig:generator}) et l'ensemble~\(L'\) de variables vivantes à son
 début. Pour que~\(code\) puisse servir comme corps de boucle, il suffit
@@ -435,16 +406,12 @@ obtenir une liste finale~\(B\) et un ensemble~\(\livein{B}\) qui satisfont
 \union FV(c)\), et~\(B' \subseteq \livein{B}\).
 
 
-\section{Implantation}
+\section{Implémentation}
 
-% Gabriel: Implantation ou Implémentation ? (Moi j'utilise plutôt
-% implémentation, mais peut-être as-tu une préférence claire pour
-% Implantation ?)
-
-Notre générateur \ldrgen\ est implanté dans un greffon pour Frama-C, ce qui
+Notre générateur \ldrgen\ est implémenté dans un greffon pour Frama-C, ce qui
 est un outil extensible pour l'analyse et transformation de logiciels écrits
 en C~\cite{frama-c}. \ldrgen\ est un logiciel libre, disponible
-à~\url{https://github.com/gergo-/ldrgen}. L'implantation du générateur
+à~\url{https://github.com/gergo-/ldrgen}. L'implémentation du générateur
 comprend environ~600 lignes d'OCaml, suivant la structure du pseudo-code en
 figure~\ref{fig:generator}. Pour l'instant, l'outil génère un sous-ensemble
 du langage~C avec des opérations arithmétiques et bit à bit sur tous les
