@@ -6,7 +6,7 @@
 % Pre-proceedings: 15 September, 2017
 % Conference:   10-12 October, 2017 (Namur, Belgium)
 %
-% Page limit: 15 pages, including references
+% Page limit: 16 pages, including references (was: 15)
 
 \documentclass{llncs}
 
@@ -16,6 +16,9 @@
 \usepackage{wasysym}
 \usepackage{listings}
 \usepackage{alltt}
+\usepackage{tikz}
+
+\usetikzlibrary{arrows}
 
 % % for review: page and line numbers "if possible"
 % \usepackage{lineno}
@@ -42,7 +45,7 @@
 
 \begin{document}
 \maketitle
-\thispagestyle{plain}
+\pagestyle{plain}  % TODO: remove, for review only
 
 \begin{abstract}
 Randomly generated programs are popular for testing compilers and program
@@ -108,7 +111,7 @@ project on finding missed optimizations in C compilers. Inspired by the
 successes of Csmith, in this project we generate random C programs, compile
 them using various compilers, then use custom tooling to search for possible
 optimizations in the resulting binaries. (The details will be described in a
-separate paper.) 
+separate paper.)
 
 Starting with Csmith as our program generator, we found early on that it was
 not an optimal fit for our intended use case: Despite generating
@@ -139,6 +142,7 @@ In this section we briefly recall the basics of liveness analysis and then
 present our novel formulation as a set of structural inference rules.
 
 \subsection{Principles of liveness analysis}
+\label{sec:liveness}
 
 A variable is called~\emph{live} at a program point if the value it holds at
 that point may be read in the future, without an intervening redefinition;
@@ -163,38 +167,81 @@ code that does~\emph{not} contain any such opportunities for dead code
 elimination.
 
 Liveness analysis is one of the classical data-flow
-analyses~\cite{nielson.etal-1999}. It is traditionally performed as backward
-fixed-point iteration over a program's control-flow graph. A statement \(S\)
-in the control-flow graph has a \emph{live-in} set~\(\livein{S}\) and a
-\emph{live-out} set~\(\liveout{S}\) which capture the sets of live variables
-before and after execution of~\(S\). Every statement~\(S\) also has a
-\emph{transfer function}~\(f_S\) relating these sets. The important case are
-assignments of the form~\(v = e\) for some variable~\(v\) and
-expression~\(e\). We have the following transfer function for such
-assignments, where~\(FV(e)\) denotes the set of all variables occurring
-in~\(e\):
-\[
-\livein{S} = f_{v = e}(\liveout{S})
-           = (\liveout{S} \setminus \{v\}) \union FV(e)
-\]
+analyses~\cite{nielson.etal-1999}. It is a \emph{backward}, \emph{may}
+analysis traditionally performed as backward fixed-point iteration over a
+program's control-flow graph. A statement \(S\) in the control-flow graph
+has a \emph{live-in} set~\(\livein{S}\) and a \emph{live-out}
+set~\(\liveout{S}\) which capture the sets of live variables before and
+after execution of~\(S\). Every statement~\(S\) also has a \emph{transfer
+function}~\(f_S\) relating these sets. Figure~\ref{fig:functions} shows the
+transfer functions for assignments, \texttt{if} statements,
+and~\texttt{while} loops. Liveness information is noted on the edges of the
+control flow graph. In the equations, \(FV(e)\) denotes the set of all
+variables in expression~\(e\).
 
-The function is said to \emph{kill} the set~\(\{v\}\) and \emph{generate}
-the set~\(FV(e)\). Unless~\(v\) occurs in~\(e\), it will be dead before this
-assignment, since the value it holds at that point will be overwritten by
-the assignment.
+\begin{figure}
+\centering
+\vskip-1cm
 
-Evaluation of expressions without overwriting a variable,
-as in a branch condition, only generates new live variables. Individual
-transfer functions are connected in a system of equations such that each
-statement's live-out set is the union of the live-in sets of all of its
-successors:~\(\liveout{S} = \bigcup_{S_i \in \mathit{succ}(S)}
-\livein{S_i}\)
+\tikzstyle{stmt} = [rectangle, draw]
+\tikzstyle{arc} = [draw, -latex']
 
-If the program contains loops, their live-out sets will depend recursively
-on their own live-in sets. The desired solution is the~\emph{least fixed
+\begin{tabular}{c @{\qquad} c @{\qquad} c}
+
+\begin{tikzpicture}[auto]
+\node (start) {};
+\node[stmt, below of=start] (assgn) {\(v \mathtt{\ =\ } e\)};
+\node[below of=assgn] (end) {};
+\path[arc] (start) -- node {\(\livein{S}\)} (assgn);
+\path[arc] (assgn) -- node {\(\liveout{S}\)} (end);
+\end{tikzpicture}
+&
+
+\begin{tikzpicture}[node distance=1.2cm, auto]
+\node (start) {};
+\node[stmt, below of=start] (if) {\(\mathtt{if\ (}c\mathtt{)}\)};
+\path[arc] (start) -- node {\(\livein{S}\)} (if);
+\path[arc] (if) -| node [swap, near end] {\(\livein{S_1}\)} ++(-1cm,-1.25cm);
+\path[arc] (if) -| node [near end] {\(\livein{S_2}\)} ++(1cm,-1.25cm);
+\end{tikzpicture}
+&
+
+\begin{tikzpicture}[node distance=1.2cm, auto]
+\node (start) {};
+\node[stmt, below of=start] (while) {\(\mathtt{while\ (}c\mathtt{)}\)};
+\node[stmt, below of=while] (body) {\(\cdots\)};
+\path[arc] (start) -- node {\(\livein{S}\)} (while);
+\path[arc] (while) -| node [swap, near end] {\(\liveout{S}\)} ++(-1.25cm,-2cm);
+\path[arc] (while) -- node {\(\livein{B}\)} (body);
+\path[arc] (body) -- node {\liveout{B}} ++(0cm,-.75cm)
+                  -- ++(1.25cm,0cm)
+                  |- node [swap, near end] {\(\livein{S}\)} (while);
+\end{tikzpicture}
+
+\\[1em]
+\(\livein{S} = (\liveout{S} \setminus \{v\}) \union FV(e)\)
+&
+\(\livein{S} = \livein{S_1} \union \livein{S_2} \union FV(c)\)
+&
+\(\livein{S} = \liveout{S} \union \livein{B} \union FV(c)\)
+
+\end{tabular}
+
+\caption{Liveness transfer functions}
+\label{fig:functions}
+\end{figure}
+
+\vskip-.5cm
+The transfer function for an assignment~\(v = e\) is said to~\emph{kill} the
+variable~\(v\) and \emph{generate} all the variables in~\(e\). The transfer
+functions for~\texttt{if} statements and~\texttt{while} loops kill nothing
+and generate the variables in their condition~\(c\). The live-in
+set~\(\livein{S}\) of a loop~\(S\) has a recursive dependency on itself: It
+is the same as the body's live-out set~\(\liveout{B}\), on which the body's
+live-in set~\(\livein{B}\) depends.
+The desired solution for~\(\livein{S}\) is the~\emph{least fixed
 point} of the system of equations, which can be found efficiently by
-propagating data-flow information backward, i.\,e., starting at the
-program's end and proceeding against the direction of control flow.
+propagating data-flow information backwards around the loop.
 
 
 \subsection{Recognizing fully live programs}
@@ -232,7 +279,7 @@ e ::= &
 S ::=
     & v \mbox{\texttt{\ =\ }} e & \mbox{assignment statement} \\
 \mid & \mathtt{return\ } v & \mbox{return statement} \\
-\mid & \mbox{\texttt{\{\}}} & \mbox{empty block} \\ 
+\mid & \mbox{\texttt{\{\}}} & \mbox{empty block} \\
 \mid & S \mathtt{;\ } S & \mbox{sequencing} \\
 \mid & \mathtt{if\ (}e\mathtt{)\ } S \mathtt{\ else\ } S & \mbox{conditional branch} \\
 \mid & \mathtt{while\ (}e\mathtt{)\ } S & \mbox{loop}
@@ -244,12 +291,12 @@ S ::=
 
 Figure~\ref{fig:rules} shows a system of inference rules that characterize
 fully live programs. In these rules we use a notation similar to Hoare
-triples. A \emph{liveness triple} \[\triple{\livein{L}}{S}{\liveout{L}}\]
-means that the variables in the set~\(\livein{L}\) are live immediately
+triples. A \emph{liveness triple} \[\triple{\livein{S}}{S}{\liveout{S}}\]
+means that the variables in the set~\(\livein{S}\) are live immediately
 before the statement~\(S\) (\emph{live in}), and the variables
-in~\(\liveout{L}\) are live immediately after~\(S\) (\emph{live out}). A
-program~\(S\) is fully live iff there is a set of variables~\(\livein{L}\)
-such that the liveness triple~\(\triple{\livein{L}}{S}{\emptyset}\) is
+in~\(\liveout{S}\) are live immediately after~\(S\) (\emph{live out}). A
+program~\(S\) is fully live iff there is a set of variables~\(\livein{S}\)
+such that the liveness triple~\(\triple{\livein{S}}{S}{\emptyset}\) is
 derivable in the system.
 
 \begin{figure}
@@ -260,55 +307,54 @@ derivable in the system.
 }
 \qquad
 \inferrule*[left=Skip]{
-    L \neq \emptyset
+    % S \neq \emptyset
 }{
-    \triple{L}{\mathtt{\{\}}}{L}
+    \triple{S}{\mathtt{\{\}}}{S}
 }
 \]
 
 \[
 \inferrule*[left=Assign]{
-    v \in \liveout{L} \\
-    \livein{L} = (\liveout{L} \setminus \{v\}) \union FV(e)
+    v \in \liveout{S} \\
+    \livein{S} = (\liveout{S} \setminus \{v\}) \union FV(e)
 }{
-    \triple{\livein{L}}{v\ \mathtt{=}\ e}{\liveout{L}}
+    \triple{\livein{S}}{v\ \mathtt{=}\ e}{\liveout{S}}
 }
 \]
 
 \[
 \inferrule*[left=Sequence]{
-    \triple{\livein{L_1}}{S_1}{\livein{L_2}} \\
-    \triple{\livein{L_2}}{S_2}{\liveout{L_2}} \\
-    \livein{L_2} \neq \emptyset
+    \triple{\livein{S_1}}{S_1}{\livein{S_2}} \\
+    \triple{\livein{S_2}}{S_2}{\liveout{S_2}} \\
+    \livein{S_2} \neq \emptyset
 }{
-    \triple{\livein{L_1}}{S_1\ \mathtt{;}\ S_2}{\liveout{L_2}}
+    \triple{\livein{S_1}}{S_1\ \mathtt{;}\ S_2}{\liveout{S_2}}
 }
 \]
 
 \[
 \inferrule*[left=If]{
-    \triple{\livein{L_1}}{S_1}{\liveout{L}} \\
-    \triple{\livein{L_2}}{S_2}{\liveout{L}} \\
-    \livein{L} = \livein{L_1} \union \livein{L_2} \union FV(c)
+    \triple{\livein{S_1}}{S_1}{\liveout{S}} \\
+    \triple{\livein{S_2}}{S_2}{\liveout{S}} \\
+    \livein{S} = \livein{S_1} \union \livein{S_2} \union FV(c) \\
+    S_1 \neq \{\} \lor S_2 \neq \{\}
 }{
-    \triple{\livein{L}}
+    \triple{\livein{S}}
            {\mathtt{if\ (}c\mathtt{)}\ S_1\ \mathtt{else}\ S_2}
-           {\liveout{L}}
+           {\liveout{S}}
 }
 \]
 
 \[
 \inferrule[While]{
-    \triple{\livein{B}}{S}{\liveout{B}} \\
-    \liveout{B} = \liveout{L} \union \livein{B} \union FV(c)
-        \mbox{ (minimal)} \\
-    % \liveout{B}\ \mbox{minimal} \\
-    \livein{L} = \livein{B} \union \liveout{L} \\
-    \liveout{L} \neq \emptyset
+    \triple{\livein{B}}{B}{\liveout{B}} \\
+    \liveout{B} = \livein{S} \mbox{ (minimal)} \\
+    \livein{S} = \liveout{S} \union \livein{B} \union FV(c) \\
+    \liveout{S} \neq \emptyset
 }{
-    \triple{\livein{L}}
-           {\mathtt{while\ (}c\mathtt{)}\ S}
-           {\liveout{L}}
+    \triple{\livein{S}}
+           {\mathtt{while\ (}c\mathtt{)}\ B}
+           {\liveout{S}}
 }
 \]
 \caption{System of inference rules for fully live programs}
@@ -317,36 +363,36 @@ derivable in the system.
 
 Intuitively, the system of inference rules encodes two things. First, the
 rules are an alternative presentation of the transfer functions of liveness
-analysis. A triple~\(\triple{\livein{L}}{S}{\liveout{L}}\) that appears in a
-valid derivation corresponds to a data-flow equation~\(\livein{L} =
-f_S(\liveout{L})\) where~\(f_S\) is the transfer function for the
+analysis. A triple~\(\triple{\livein{S}}{S}{\liveout{S}}\) that appears in a
+valid derivation corresponds to a data-flow equation~\(\livein{S} =
+f_S(\liveout{S})\) where~\(f_S\) is the transfer function for the
 statement~\(S\). For example, the transfer function~\(f_{v = e}\) for an
-assignment~\(v\)\verb| = |\(e\) is just~\(f_{v = e}(\liveout{L}) =
-(\liveout{L} \setminus \{v\}) \union FV(e)\), as in the side condition of
+assignment~\(v\)\verb| = |\(e\) is just~\(f_{v = e}(\liveout{S}) =
+(\liveout{S} \setminus \{v\}) \union FV(e)\), as in the side condition of
 the~\textsc{Assign} rule. Similarly, the~\textsc{Sequence} rule encodes the
 composition of transfer functions, and the~\textsc{If} rule encodes the
 split and join of data-flow information along different program paths.
 
 Second, the other side conditions add a system of constraints to ensure full
 liveness: Any assignment statement appearing in a fully live program~\(S\)
-(i.\,e., for which a derivation of~\(\triple{\livein{L}}{S}{\emptyset}\) for
-some~\(\livein{L}\) exists) is itself live. This follows directly from
-the~\textsc{Assign} rule's side condition~\(v \in \liveout{L}\).
+(i.\,e., for which a derivation of~\(\triple{\livein{S}}{S}{\emptyset}\) for
+some~\(\livein{S}\) exists) is itself live. This follows directly from
+the~\textsc{Assign} rule's side condition~\(v \in \liveout{S}\).
 For example, a triple of the form
 \[
-\triple{\livein{L}}{\mbox{\texttt{x = a; x = b}}}{\liveout{L}}
+\triple{\livein{S}}{\mbox{\texttt{x = a; x = b}}}{\liveout{S}}
 \]
 can never be derived in the system because the first of the two assignments
 is dead. The~\textsc{Sequence} rule says that to derive this triple, there
-must be some intermediate set~\(L'\) of variables such that \(\mathtt{x} \in
-L'\) due to \textsc{Assign} on~\verb|x = a| while at the same time
-\(L' = (L \setminus \{\mathtt{x}\}) \union \{\mathtt{b}\}\) due
+must be some intermediate set~\(S'\) of variables such that \(\mathtt{x} \in
+S'\) due to \textsc{Assign} on~\verb|x = a| while at the same time
+\(S' = (S \setminus \{\mathtt{x}\}) \union \{\mathtt{b}\}\) due
 to~\textsc{Assign} on~\verb|x = b|. This is a contradiction, so the
 derivation attempt must fail.
 
 While the other rules are straight-forward, the \textsc{While} rule deserves
 some discussion. Unlike the two branches of the~\verb|if| statement, the
-whole loop's live-out set~\(\liveout{L}\) is not identical to the loop
+whole loop's live-out set~\(\liveout{S}\) is not identical to the loop
 body's live-out set~\(\liveout{B}\): Typically there are loop-carried
 dependences, i.\,e., cases where a variable is set on one iteration of the
 loop and its value is read on a later iteration. Such variables are live out
@@ -358,9 +404,9 @@ additional variables.
 Let~\(f_S\) denote the liveness transfer
 function corresponding to the loop body statement~\(S\). Then from the
 liveness triple~\(\triple{\livein{B}}{S}{\liveout{B}}\) we have~\(\livein{B}
-= f_S(\liveout{B})\), and the equation~\(\liveout{B} = \liveout{L} \union
+= f_S(\liveout{B})\), and the equation~\(\liveout{B} = \liveout{S} \union
 \livein{B} \union FV(c)\) means that~\(\liveout{B}\) is a fixed point of the
-function~\(\lambda\,B.\;(\liveout{L} \union f_S(B) \union FV(c))\). The
+function~\(\lambda\,B.\;(\liveout{S} \union f_S(B) \union FV(c))\). The
 minimality side condition additionally specifies that we are interested in
 the \emph{least} fixed point of this function. This least fixed point exists
 and is unique~\cite{nielson.etal-1999}.
@@ -440,6 +486,7 @@ is~\emph{fully live} by our definition.
 
 
 \subsection{Limitations of the system}
+\label{sec:limitations}
 
 Note that fully live programs may still contain opportunities for simple
 optimizations that remove code that does not have interesting effects. For
@@ -534,12 +581,13 @@ let (code, L) = random_statements {v} ["return $v$"]
 \label{fig:generator}
 \end{figure}
 
-Every statement generation function takes a live variable set~\(L\) and
-returns a pair of a newly generated statement and an updated live variable
-set according to the statement's transfer function.
-We iterate statement generation and collect a list of statements
-forming a block. In this presentation we omit helper functions such as the
-ones for generating random variables and expressions.
+Every statement generation function takes a live variable set~\(L\)
+(representing the live-out set~\(\liveout{S}\) of the statement~\(S\) to be
+generated) and returns a pair of a newly generated statement and an updated
+live variable set according to the statement's transfer function. We iterate
+statement generation and collect a list of statements forming a block. In
+this presentation we omit helper functions such as the ones for generating
+random variables and expressions.
 
 As before, the handling of loops merits more discussion. Just as the
 inference system needs a minimal set~\(\livein{B}\) containing new variables
@@ -558,12 +606,12 @@ of Figure~\ref{fig:example}, this is the case for variable~\verb|b|, which
 stores the next Fibonacci number for assignment to~\verb|a| on the
 subsequent iteration. Using the names in the~\textsc{While} rule of
 Figure~\ref{fig:rules}, the set of these `new' variables is~\(B' =
-\liveout{B} \setminus (\liveout{L} \union FV(c))\). It follows that~\(B'
+\liveout{B} \setminus (\liveout{S} \union FV(c))\). It follows that~\(B'
 \subseteq \livein{B}\), i.\,e., every~\(b \in B'\) is live into the loop.
 
 To generate a fully live loop, we choose a random set~\(B'\) of new
 variables and generate a loop body in a way that ensures that~\(\liveout{B}
-= \liveout{L} \union B' \union FV(c)\) is a least fixed point of the loop.
+= \liveout{S} \union B' \union FV(c)\) is a least fixed point of the loop.
 For this we add~\(B'\) to the live variable set~\(L\)
 before generating a loop body block (along with the live variables~\(FV(c)\)
 generated by the loop condition). The generated loop body may or may not
@@ -583,7 +631,7 @@ We pick a random live variable \(v \in L'\) and prepend an
 assignment~\(v\)\verb| = |\(e\) to the generated loop body, where~\(e\) is
 an expression containing all the variables in~\(V\). This final loop body
 ensures that all variables in~\(B'\) are live into it and used in it, hence
-ensuring that~\(\liveout{B} = \liveout{L} \union B' \union FV(c)\) is a
+ensuring that~\(\liveout{B} = \liveout{S} \union B' \union FV(c)\) is a
 least fixed point of the loop's liveness constraint system.
 
 A small detail not illustrated in the pseudocode is the case when~\(L'\) is
@@ -612,6 +660,7 @@ about~600 lines of generator code, plus some utilities and configuration.
 \texttt{\url{https://github.com/gergo-/ldrgen}}.
 
 \subsection{Random generation}
+\label{sec:generation}
 
 The core of the generator has the same structure as the pseudocode in
 Figure~\ref{fig:generator}. After generating an empty function definition
@@ -661,7 +710,7 @@ loop once entered could never terminate. Even so, termination is not at all
 guaranteed.
 
 Bottom-up generation of the function's body may stop if there are no more
-live variables, or if a user defined limit is reached. In this
+live variables, or if a user-defined limit is reached. In this
 latter case, there may remain live local variables at the start of the
 function's body. Their liveness means that they may be used without being
 assigned to, so we must ensure that they are initialized. We therefore
@@ -685,6 +734,7 @@ with a fixed set of arguments and a fixed seed thus always gives the same
 reproducible result.
 
 \subsection{Extensions to the basic model}
+\label{sec:extensions}
 
 We describe two extensions to the core language of Figure~\ref{fig:syntax}
 that are already implemented in \ldrgen: very limited uses of pointers
@@ -717,10 +767,12 @@ arithmetic operator. This loop pattern implements a map-reduce operation,
 mapping some function~\(f\) over the array and reducing (folding) the result
 with~\(\circ\). It is currently the only kind of~\verb|for| loop we
 implement, but this would be easy to generalize.
-%
+
 Similar forms of loops are already generated by Csmith, but there their
-results are virtually never used. In~\ldrgen, we choose a loop result
-variable~\verb|v| that is live after the loop to ensure that it is used.
+results are virtually never used. Csmith's loops are therefore completely
+eliminated by compilers instead of being vectorized. In~\ldrgen, we choose a
+loop result variable~\verb|v| that is live after the loop to ensure that it
+is used, and the loop exposed to the compiler's loop optimizer.
 
 \subsection{Future extensions}
 
@@ -747,7 +799,11 @@ amounts of generated C code, \ldrgen's output results in more, and ideally
 more varied, assembly code than Csmith's output. We therefore compare the
 two generators along these lines. We do not claim superiority to Csmith in
 any other regard, especially not concerning its power to find subtle
-miscompilation bugs.
+miscompilation bugs. Csmith covers a larger subset of the C language than
+\ldrgen\ and, in its default mode, carefully ensures that its output is
+well-defined according to the C standard. \ldrgen\ tries to guard against
+oversized shifts and divisions by zero (see Section~\ref{sec:generation})
+but does not otherwise guarantee well-definedness.
 
 Csmith is designed to run complete, self-contained applications consisting
 of several functions, driven by a~\verb|main| function. In contrast,
@@ -795,7 +851,7 @@ each.}
 % & \ldrgen
 %     & 1 & 97 & 120 & 146
 %     \\
-% 
+%
 % small_for_loops
 % version 2:
 % lines of code & Csmith
@@ -828,9 +884,9 @@ unique opcodes & Csmith
 & \ldrgen
     & 1 & 95 & 124 & 204
     \\
-% 
+%
 % type conversions, vector instructions (!)
-% 
+%
 % https://github.com/gergo-/ldrgen
 \end{tabular}
 \end{table}
@@ -893,8 +949,10 @@ different opcodes, an increase in instruction set coverage of~40\,\%.
 Inspection of the sets of opcodes shows that this difference is almost
 entirely due to various vector (SIMD) arithmetic instructions generated for
 \ldrgen's code. Compiling to such instructions was the goal of
-adding~\verb|for| loops over arrays to \ldrgen.  Manual inspection of some
+adding~\verb|for| loops over arrays to \ldrgen. Manual inspection of some
 cases shows that such loops are indeed the origin of these instructions.
+As noted above, such loops are also generated by Csmith, but their results
+are almost never used, so they do not appear in the compiled code.
 Disabling generation of~\verb|for| loops in~\ldrgen\ brings its total number
 of unique instructions down to~147, comparable to Csmith.
 
@@ -903,33 +961,36 @@ for~\ldrgen\ are~\verb|call| instructions to~\verb|memcpy| which are
 sometimes generated by compilers for structure copies. \ldrgen\ currently
 does not generate structures at all.
 
-Finally we compare the speed of the two generators. Generating the~1000
+Finally, in Table~\ref{tab:timings} we compare the speed of the two
+generators. Generating the~1000
 files each analyzed above took 871~seconds with Csmith and~124 seconds with
 \ldrgen\ (Csmith backtracks if it finds that it has generated unsafe code).
 Csmith generates about~527 lines of C code per second, with \ldrgen\
 generating~3140 (about~\(6\,\times\) more). With respect to final machine
 code, Csmith-generated code compiles to about~52 instructions per second of
 generation time, whereas \ldrgen\ produces~8563 (about~\(160\,\times\)).
+%
+These numbers do not include the time taken by the compiler; compiling all
+1000 files for each generator takes about~46.6 seconds for Csmith and~80.3
+seconds for \ldrgen.
 
-
-% These numbers do not include the time taken by the compiler; compiling all
-% 1000 files for each generator takes about~46.6 seconds for Csmith and~80.3
-% seconds for \ldrgen.
-
-% \begin{table}
-% \caption{Comparison of the time to generate 1000 files.}
-% \label{tab:timings}
-% \centering
-% \begin{tabular}{l@{\ } | @{\ }r@{\quad}r@{\quad}r}
-%     generator & time (sec) & lines/sec & instrs/sec \\
-%     \hline
-%     Csmith & 871 &  527 & 52.4 \\
-%     ldrgen & 124 & 3140 & 8562.8
-% \end{tabular}
-% \end{table}
+\begin{table}
+\caption{Comparison of the time to generate 1000 files.}
+\label{tab:timings}
+\centering
+\begin{tabular}{l@{\ } | @{\ }r@{\quad}r@{\quad}r}
+    generator & time (sec) & lines/sec & instrs/sec \\
+    \hline
+    Csmith & 871 &  527 & 52.4 \\
+    ldrgen & 124 & 3140 & 8562.8
+\end{tabular}
+\end{table}
 
 
 \section{Related work}
+
+\subsection{Csmith}
+\label{sec:csmith}
 
 The best-known random program generator is Csmith~\cite{csmith-2011}, based
 on an earlier system
@@ -951,16 +1012,28 @@ is ensured by construction. Csmith generates a larger subset of C than
 current or currently planned versions of \ldrgen, including unstructured
 control flow and less restricted use of pointers.
 
+Due to Csmith's forward generation and data-flow analysis, it does not
+appear possible to directly integrate our backward liveness-driven approach
+in Csmith. A `best effort' approach that would not give full liveness
+guarantees might extend Csmith with a forwards reaching definitions
+analysis~\cite{nielson.etal-1999}. At each program point, when generating an
+expression, Csmith could then prefer to use previously defined variables
+over fresh variables. Alternatively, it might be extended with a mode that
+computes a function's return value from all otherwise unused variables in
+the program, artificially making them live.
+
 Csmith has been used to find hundreds of bugs in C compilers when compiling
 the programs it generates~\cite{csmith-2011}. It has also been used as the
 basis of mutation-based systems, where Csmith's output was modified using
 other tools to provoke compiler bugs~\cite{le.etal-2014}. The CLsmith tool
 derived from Csmith has been used to find many bugs in OpenCL
-compilers~\cite{lidbury.etal-2015}. Another notable generator is jsfunfuzz
-for JavaScript, which has found thousands of bugs in JavaScript
-engines~\cite{jsfunfuzz}.
+compilers~\cite{lidbury.etal-2015}.
 
-% fuzzing levels?
+\subsection{Other random generators}
+
+Other notable random generators include Orange3~\cite{orange3-2014} for C,
+jsfunfuzz~\cite{jsfunfuzz} for JavaScript, and
+efftester~\cite{midtgaard.etal-2017} for OCaml.
 
 The JTT program generator~\cite{zhao.etal-2009} is aimed directly at testing
 compiler optimizations. It uses a model-based approach, where generation is
@@ -978,6 +1051,8 @@ Other work specifically aimed at testing and comparing program verification
 tools generates code from randomly generated LTL
 formulae~\cite{steffen.etal-2014}. The generated code is guaranteed to
 satisfy the specified temporal properties.
+
+\subsection{Structural data-flow analysis}
 
 Our formulation of liveness analysis as set of structural inference rules is
 inspired by formulations of interval-based data-flow analysis where
@@ -1004,12 +1079,203 @@ finding correctness bugs in these optimizations.
 
 \section*{Acknowledgments}
 
-The author would like to thank the anonymous reviewers and John Regehr for
-insightful comments on earlier versions of this paper.
+The author would like to thank the anonymous reviewers, John Regehr, and
+Gabriel Scherer for insightful comments on earlier versions of this paper.
 This research was partially supported by ITEA~3 project no.~14014, ASSUME.
 
 
 \bibliography{lopstr2017}
 \bibliographystyle{splncs03}
+
+\newpage
+\appendix
+
+\section{Changes in response to reviewer comments}
+
+\subsection{Review 1}
+
+\begin{itemize}\item
+\emph{``As a main weakness, the paper contains no formal statement regarding
+the inference rules for generating fully live programs.''}
+\end{itemize}
+
+I acknowledge that this is the case; the system is not fully formalized. The
+side conditions of the inference rules are chosen to ensure that, if all the
+variables in a statement's live-out set may be used in the future, then the
+statement is fully live. Hence the statement in Section~2.2 that a
+program~\(S\) is fully live iff a
+triple~\(\triple{\livein{S}}{S}{\emptyset}\) is derivable; however, there
+is no formalized proof (by induction on derivations) of this property.
+
+\begin{itemize}\item
+\emph{``The informal explanation of live analysis in Sect. 2.1 is too vague.
+I think it could be formally defined in more or less the same space.
+Moreover, you don't mention that the analysis is backward, which I think
+is essential to follow the text.''}
+\end{itemize}
+
+Thank you for the hint, I now mention that the analysis is backward, and I
+give concrete data-flow equations not only for assignments as before but
+also for~\texttt{if} and~\texttt{while} statements.
+
+\begin{itemize}\item
+\emph{``Regarding the evaluation, you basically use CSmith in a very limited
+way, so that the produced programs are comparable to that of ldrgen.
+The result of the comparison is clearly favorable to ldrgen, which is
+good. However, I'd like to know the advantages of CSmith over ldrgen
+too.''}
+\end{itemize}
+
+Yes, it is indeed the case that I use Csmith in a particular way that it was
+not specifically designed for. I have added some remarks in Section 4
+highlighting some of its features that \ldrgen\ lacks (`do not claim
+superiority to Csmith\dots' and the sentences that follow). There is also a
+discussion of Csmith's features in the related work section.
+
+\begin{itemize}\item
+\emph{``Moreover, it would also be nice to have some sentences on the
+scalability of your ideas, i.e., do you think that CSmith could be
+extended in such a way that only fully live programs are generated,
+while still having its actual functionality?''}
+\end{itemize}
+
+I have added a paragraph in Section~\ref{sec:csmith} on possible ways of
+extending Csmith to also generate mostly, or fully, live programs.
+
+
+\subsection{Review 2}
+
+\begin{itemize}\item
+\emph{``The generated assembly code also
+contains more unique opcodes but, if I understand correctly, this
+is due to something that is completely orthogonal to the approach
+based on liveness analysis (namely, the prototype described in the
+paper generates for-loops over arrays that GCC translates into
+SIMD instructions).  I think this orthogonal feature should be
+factored out: as it is, it generated confusion.''}
+\end{itemize}
+
+Csmith also generates similar loops; their form in \ldrgen\ is inspired by
+Csmith's output. The reason that these loops result in additional unique
+opcodes for \ldrgen\ is that Csmith then never uses the results computed by
+these loops, so the compiler eliminates them. Thus this feature is not
+orthogonal: It's also present in Csmith, but it's only useful due to
+\ldrgen's liveness analysis that ensures that the result is used, and the
+loop must therefore be preserved and optimized by the compiler.
+
+I have extended the discussion at the end of Section~\ref{sec:extensions} to
+make this point more explicit.
+
+\begin{itemize}\item
+\emph{``If I understand correctly, other important features of Csmith
+(e.g., the guarantee not to generate programs with undefined behaviors)
+are not addressed by the prototype presented in the paper.
+The impression I have is that the technique proposed by the authors
+might be integrated into Csmith.''}
+\end{itemize}
+
+I have added a paragraph in Section~\ref{sec:csmith} on possible ways of
+extending Csmith to also generate mostly, or fully, live programs.
+
+\begin{itemize}\item
+\emph{``These two paragraphs present two approaches to compiler
+verification,
+and misses the most widespread one in industrial contexts: validation
+by means of well-defined test-suites, such as the SuperTest, Plum Hall
+and Perennial compiler validation suites.  I would like this omission
+to be removed in case the paper is accepted.''}
+\end{itemize}
+
+I have added a little bit of discussion and citations.
+
+\begin{itemize}\item
+\emph{``These two sentences [author's note: concerning bugs found by Csmith,
+including in CompCert] require citations.''}
+\end{itemize}
+
+I have added a citation of~\cite{csmith-2011} at this point.
+
+\begin{itemize}\item
+\emph{``Replace "$v$ is live at the point of this statement" with    "$v$ is
+live at the point just after this statement"''; ``Please define FV(e).''}
+\end{itemize}
+
+Thank you for the recommendations, I have performed these changes.
+
+
+\subsection{Review 3}
+
+\begin{itemize}\item
+\emph{``The author claims that "the generator never generates dead code" and
+that "Full liveness of variables in loops is ensured by construction", but
+this claim is not evident from the paper. There is no result in the paper
+along these lines and it does not provide any evidence that the proposed
+algorithm does not generate dead code.''}
+\end{itemize}
+
+Yes, as discussed above, the inference system after which the generator is
+structured is designed to ensure these properties, but there is no formal
+proof that this is the case.
+
+\begin{itemize}\item
+\emph{``The author also says that Csmith generates a large amount of dead
+code, but this is not proved nor sufficiently motivated in the paper.''}
+\end{itemize}
+
+The paper mentions that it is common to see Csmith generate functions of
+hundreds of lines that compile to about ten instructions. The evaluation
+section shows results to this effect. Further below, the reviewer
+acknowledges that the results shown are relevant for comparing the amount of
+dead code generated by different code generators.
+
+It is not clear to me what standard of proof this reviewer would expect.
+There is not enough space in the paper to include an entire Csmith-generated
+function and to contrast it with the generated assembly code.
+
+\begin{itemize}\item
+\emph{``Moreover, in the paper there is a kind of confusion between
+"possible" and "definite" liveness properties. The definition of the
+liveness property used in the paper is a "possible" liveness (a variable is
+live if it may be read in the future).''}
+\end{itemize}
+
+There is no confusion in the paper, although based on this remark I now do
+mention explicitly in Section~\ref{sec:liveness} that the liveness analysis
+is a~\emph{may} analysis. The definition of the liveness property used in
+the paper is the standard definition used by compilers and in the
+literature~\cite{nielson.etal-1999}. This is always a~\emph{may}
+analysis (i.\,e., `possible' liveness, in the reviewer's words).
+
+The standard clients of liveness analysis are dead code elimination and
+register allocation. Both of these would become unsound if a hypothetical
+`definite' liveness analysis were used: Dead code elimination would
+remove computations that \emph{may} still have uses, and similarly register
+allocation would fail to allocate a register (or stack slot) to values that
+\emph{may} have future uses.
+
+If the reviewer is aware of a `definite liveness' analysis or property in
+the literature, actually referred to as `liveness' in a way that may cause
+confusion with standard usage, I would be grateful for a reference so I can
+add a citation and better clear up any confusion. I am currently unaware of
+any ambiguous use of the term in the compiler/program analysis community.
+
+\begin{itemize}\item
+\emph{``The ability of the generator to generate only live code must
+cope with the fact that the liveness analyses used in the proposed algorithm
+and that one executed in the compiler may be different. As a consequence,
+the ability to generate only live code can be compiler-independent only if a
+"definite" liveness property is ensured. The evaluation section of the paper
+seems to confirm that dead code can be generated, even if in less cases than
+the Csmith generator.''}
+\end{itemize}
+
+Yes, this is addressed in Section~\ref{sec:limitations}. Compilers can
+directly implement `semantic' rules, e.\,g., that an expression~\texttt{y -
+y} does not need to count as a use of~\texttt{y}. Alternatively, they can
+realize this due to the interaction with other optimizations (such as a
+constant folding pass that would turn this expression into~0 and thus
+directly eliminate the uses of~\texttt{y}). The discussions in both the
+evaluation section and in Section~\ref{sec:limitations} acknowledge these
+facts.
 
 \end{document}
