@@ -215,20 +215,19 @@ vivante après l'affectation. De la même façon, la condition~\(S_1 \neq \{\}
 branchement inutiles comme~\texttt{if (x) \{\} else \{\}} ne sont pas
 acceptées.
 
-Un programme~\(S\) ne contient pas de code mort si le
-triplet~\(\triple{\livein{S}}{S}{\emptyset}\) peut être dérivé dans le
-système de règles d'inférence.
-
-% Gabriel: (c) pourrait être égal à (true) ou (false) pour tous les
-% chemins, auquel cas une des branches est effectivement morte. Il
-% s'agit ici d'une approximation.
-
 Le traitement des boucles est plus compliqué à cause de la dépendance
 cyclique entre l'ensemble~\(\livein{B}\) des variables vivantes au début du
 corps~\(B\) de la boucle, et l'ensemble~\(\liveout{B}\) des variables
 vivantes à la fin du corps de la boucle. La condition de minimalité exprime
 que la solution désirée est un point fixe minimal du système d'équations.
 Un point fixe unique minimal existe toujours~\cite{nielson.etal-1999}.
+
+Un programme~\(S\) ne contient pas de code mort si le
+triplet~\(\triple{\livein{S}}{S}{\emptyset}\) peut être dérivé dans le
+système de règles d'inférence. Il s'agit ici d'une approximation
+syntaxique~: Les optimisations sémantiques du compilateur peuvent quand-même
+trouver des simplifications qui peuvent rendre inutile certaines parties du
+code.
 
 \begin{figure}
 \[
@@ -375,9 +374,6 @@ ensemble~\(\livein{B}\) de variables qui doivent devenir vivantes au
 début du corps de la boucle, puis génère le corps
 lui-même. Finalement, il peut générer des instructions supplémentaires
 pour assurer la validité du choix de variables.
-
-% Gabriel: je pense que rappeler la règle d'inférence pour 'while' ici
-% aiderait le lecteur à suivre.
 
 Plus précisément, nous cherchons à générer une liste~\(B\) d'instructions et
 un ensemble~\(\livein{B}\) tels que~\(\livein{B} = f_B(\liveout{B})\)
