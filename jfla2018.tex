@@ -405,6 +405,37 @@ obtenir une liste finale~\(B\) et un ensemble~\(\livein{B}\) qui satisfont
 \(\livein{B} = f_B(\liveout{B})\), \(\liveout{B} = \liveout{S} \union B'
 \union FV(c)\), et~\(B' \subseteq \livein{B}\).
 
+Par exemple, imaginons vouloir générer une boucle~\texttt{while} étant donné
+un ensemble~\(\liveout{S} = \{\mathtt{x}\}\) de variables vivantes après la
+boucle. Nous générons une condition aléatoire~\(c = \mathtt{y < 10}\) et un
+ensemble aléatoire~\(B' = \{\mathtt{z}\}\) de nouvelles variables à utiliser
+dans la boucle. Cela nous donne l'instance suivante de la
+règle~\textsc{While}:
+
+\[
+\inferrule{
+    \triple{\livein{B}}{B}{\liveout{B}} \\
+    \liveout{B} = \livein{S} \\
+    \livein{S} = \{\mathtt{x}\} \union \livein{B} \union \{\mathtt{y}\} \\
+    B' = \{\mathtt{z}\} \subseteq \livein{B}
+}{
+    \triple{\livein{S}}
+           {\mathtt{while\ (y < 10)}\ B}
+           {\{\mathtt{x}\}}
+}
+\]
+
+Il reste à générer le code~\(B\) pour le corps de la boucle sous
+l'hypothèse~\(\liveout{B} = \{\mathtt{x}, \mathtt{y}, \mathtt{z}\}\). Si le
+générateur renvoie le code~\texttt{x = z + x; y = y + 1;}, la
+variable~\texttt{z} est vivante à son début, et toutes les conditions sont
+satisfaites. Nous aurions donc construit une dérivation du triplet
+\[\triple{\{\mathtt{x}, \mathtt{y}, \mathtt{z}\}}{\mathtt{while (y <
+10)\ \{ x = z + x; y = y + 1; \}}}{\{\mathtt{x}\}}.\]
+En revanche, si~\texttt{z} n'est pas vivante au début du code généré pour le
+corps de la boucle, il suffit de préfixer le code avec une affectation
+utilisant~\texttt{z} en lecture.
+
 
 \section{Implémentation}
 
