@@ -425,8 +425,8 @@ Il reste à générer le code~\(B\) pour le corps de la boucle sous
 l'hypothèse~\(\liveout{B} = \{\mathtt{x}, \mathtt{y}, \mathtt{z}\}\). Si le
 générateur renvoie le code~\texttt{x = z + x; y = y + 1;}, la
 variable~\texttt{z} est vivante à son début, et toutes les conditions sont
-satisfaites. Nous aurions donc construit une dérivation du triplet
-\[\triple{\{\mathtt{x}, \mathtt{y}, \mathtt{z}\}}{\mathtt{while (y <
+satisfaites. Nous avons donc construit une dérivation du triplet
+\[\triple{\{\mathtt{x}, \mathtt{y}, \mathtt{z}\}}{\mathtt{while\ (y <
 10)\ \{ x = z + x; y = y + 1; \}}}{\{\mathtt{x}\}}.\]
 En revanche, si~\texttt{z} n'est pas vivante au début du code généré pour le
 corps de la boucle, il suffit de préfixer le code avec une affectation
